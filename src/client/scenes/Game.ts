@@ -135,8 +135,6 @@ export class Game extends Scene {
 
     const winningIndex = Math.ceil(Math.random() * 64);
 
-    console.log(winningIndex);
-
     const winningCol = winningIndex % 8;
     const winningRow =
       winningIndex % 8 === 0
