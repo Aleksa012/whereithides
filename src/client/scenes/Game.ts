@@ -1,16 +1,14 @@
 import { Scene } from 'phaser';
 import * as Phaser from 'phaser';
-import { IncrementResponse, DecrementResponse, InitResponse } from '../../shared/api';
 
 export class Game extends Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
   background: Phaser.GameObjects.Image;
-  msg_text: Phaser.GameObjects.Text;
-  count: number = 0;
-  countText: Phaser.GameObjects.Text;
-  incButton: Phaser.GameObjects.Text;
-  decButton: Phaser.GameObjects.Text;
-  goButton: Phaser.GameObjects.Text;
+  character: Phaser.GameObjects.Sprite;
+  blocks: Phaser.GameObjects.Rectangle[];
+  isMoving: boolean = false;
+  hasWon: boolean = false;
+  winText: Phaser.GameObjects.Text;
 
   constructor() {
     super('Game');
@@ -29,83 +27,31 @@ export class Game extends Scene {
      * ------------------------------------------- */
 
     // Display the current count
-    this.countText = this.add
-      .text(512, 340, `Count: ${this.count}`, {
-        fontFamily: 'Arial Black',
-        fontSize: 56,
-        color: '#ffd700',
-        stroke: '#000000',
-        strokeThickness: 10,
-      })
-      .setOrigin(0.5);
 
     // Fetch the initial counter value from server and update UI
-    void (async () => {
-      try {
-        const response = await fetch('/api/init');
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
 
-        const data = (await response.json()) as InitResponse;
-        this.count = data.count;
-        this.updateCountText();
-      } catch (error) {
-        console.error('Failed to fetch initial count:', error);
-      }
-    })();
+    this.character = this.add
+      .sprite(64, 64, 'knight', 0)
+      .setScale(40)
+      .setDepth(10);
 
-    // Button styling helper
-    const createButton = (y: number, label: string, color: string, onClick: () => void) => {
-      const button = this.add
-        .text(512, y, label, {
-          fontFamily: 'Arial Black',
-          fontSize: 36,
-          color: color,
-          backgroundColor: '#444444',
-          padding: {
-            x: 25,
-            y: 12,
-          } as Phaser.Types.GameObjects.Text.TextPadding,
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true })
-        .on('pointerover', () => button.setStyle({ backgroundColor: '#555555' }))
-        .on('pointerout', () => button.setStyle({ backgroundColor: '#444444' }))
-        .on('pointerdown', onClick);
-      return button;
-    };
+    this.blocks = new Array();
 
-    // Increment button
-    this.incButton = createButton(this.scale.height * 0.55, 'Increment', '#00ff00', async () => {
-      try {
-        const response = await fetch('/api/increment', { method: 'POST' });
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
+    // Create win text (hidden initially)
+    this.winText = this.add
+      .text(this.scale.width / 2, this.scale.height / 2, 'You Won!', {
+        fontFamily: 'Arial Black',
+        fontSize: 64,
+        color: '#FFD700',
+        stroke: '#000000',
+        strokeThickness: 4,
+      })
+      .setOrigin(0.5)
+      .setDepth(100)
+      .setVisible(false);
 
-        const data = (await response.json()) as IncrementResponse;
-        this.count = data.count;
-        this.updateCountText();
-      } catch (error) {
-        console.error('Failed to increment count:', error);
-      }
-    });
-
-    // Decrement button
-    this.decButton = createButton(this.scale.height * 0.65, 'Decrement', '#ff5555', async () => {
-      try {
-        const response = await fetch('/api/decrement', { method: 'POST' });
-        if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-        const data = (await response.json()) as DecrementResponse;
-        this.count = data.count;
-        this.updateCountText();
-      } catch (error) {
-        console.error('Failed to decrement count:', error);
-      }
-    });
-
-    // Game Over button – navigates to the GameOver scene
-    this.goButton = createButton(this.scale.height * 0.75, 'Game Over', '#ffffff', () => {
-      this.scene.start('GameOver');
-    });
+    // Fill screen with rectangles
+    this.fillScreenWithBlocks(this.scale.width, this.scale.height);
 
     // Setup responsive layout
     this.updateLayout(this.scale.width, this.scale.height);
@@ -113,6 +59,9 @@ export class Game extends Scene {
       const { width, height } = gameSize;
       this.updateLayout(width, height);
     });
+
+    // Add update loop to check win state
+    this.events.on('update', () => this.updateWinState());
 
     // No automatic navigation to GameOver – users can stay in this scene.
   }
@@ -125,7 +74,10 @@ export class Game extends Scene {
     if (this.background) {
       this.background.setPosition(width / 2, height / 2);
       if (this.background.width && this.background.height) {
-        const scale = Math.max(width / this.background.width, height / this.background.height);
+        const scale = Math.max(
+          width / this.background.width,
+          height / this.background.height
+        );
         this.background.setScale(scale);
       }
     }
@@ -134,28 +86,91 @@ export class Game extends Scene {
     // We only shrink on smaller screens – never enlarge above 1×.
     const scaleFactor = Math.min(Math.min(width / 1024, height / 768), 1);
 
-    if (this.countText) {
-      this.countText.setPosition(width / 2, height * 0.45);
-      this.countText.setScale(scaleFactor);
+    if (this.character) {
+      this.character.setPosition(width / 8, height * 0.25);
+      this.character.setScale(scaleFactor * 4);
     }
 
-    if (this.incButton) {
-      this.incButton.setPosition(width / 2, height * 0.55);
-      this.incButton.setScale(scaleFactor);
+    this.fillScreenWithBlocks(width, height);
+  }
+
+  moveCharacterTo(x: number, y: number, isWinningSquare: boolean) {
+    if (!this.character || this.isMoving || this.hasWon) return;
+
+    this.isMoving = true;
+
+    const currentFlip = this.character.flipX; // false if looking left
+
+    if (this.character.x > x && !currentFlip) {
+      this.character.setFlipX(true);
+    } else if (this.character.x <= x && currentFlip) {
+      this.character.setFlipX(false);
     }
 
-    if (this.decButton) {
-      this.decButton.setPosition(width / 2, height * 0.65);
-      this.decButton.setScale(scaleFactor);
-    }
+    const duration = 1000;
 
-    if (this.goButton) {
-      this.goButton.setPosition(width / 2, height * 0.75);
-      this.goButton.setScale(scaleFactor);
+    this.tweens.add({
+      targets: this.character,
+      x: x,
+      y: y,
+      duration: duration,
+      ease: 'Linear',
+      onComplete: () => {
+        this.character.anims.stop();
+        if (isWinningSquare) {
+          this.hasWon = true;
+        }
+        this.isMoving = false;
+      },
+      onStart: () => this.character.play('run'),
+    });
+  }
+
+  fillScreenWithBlocks(width: number, height: number) {
+    this.blocks.forEach((block) => block.destroy());
+    this.blocks = [];
+
+    const cols = Math.ceil(width / 8);
+    const rows = Math.ceil(height / 8);
+
+    const winningIndex = Math.ceil(Math.random() * 64);
+
+    console.log(winningIndex);
+
+    const winningCol = winningIndex % 8;
+    const winningRow =
+      winningIndex % 8 === 0
+        ? winningIndex / 8
+        : Math.floor(winningIndex / 8) + 1;
+
+    const color = 0xff6b6b;
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const x = col * cols + cols / 2;
+        const y = row * rows + rows / 2;
+
+        const isWinningSquare = row === winningRow && col === winningCol;
+
+        const block = this.add
+          .rectangle(x, y, cols - 2, rows - 2, color)
+          .setStrokeStyle(2, 0x222222)
+          .setDepth(0)
+          .setInteractive({ useHandCursor: true })
+          .on('pointerdown', () => this.moveCharacterTo(x, y, isWinningSquare));
+
+        this.blocks.push(block);
+      }
     }
   }
 
-  updateCountText() {
-    this.countText.setText(`Count: ${this.count}`);
+  updateWinState() {
+    if (this.hasWon && this.winText) {
+      this.winText.setVisible(true);
+      // Center win text on screen in case of resize
+      this.winText.setPosition(this.scale.width / 2, this.scale.height / 2);
+    } else if (this.winText) {
+      this.winText.setVisible(false);
+    }
   }
 }
