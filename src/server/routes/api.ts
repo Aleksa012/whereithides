@@ -5,6 +5,7 @@ import type {
   IncrementResponse,
   InitResponse,
 } from '../../shared/api';
+import { TileData } from '../../shared/level';
 
 type ErrorResponse = {
   status: 'error';
@@ -95,17 +96,27 @@ api.post('/decrement', async (c) => {
 api.post('/level', async (c) => {
   const payload = await c.req.json();
   const tiles = Array.isArray(payload?.tiles) ? payload.tiles : null;
+  const validTileValues = new Set<TileData>([
+    TileData.BASE_TILE,
+    TileData.ROCK,
+    TileData.TREE,
+    TileData.PICKAXE,
+    TileData.SHOVEL,
+    TileData.HOLE,
+  ]);
 
   if (
     !tiles ||
     tiles.length !== 64 ||
-    !tiles.every((tile: unknown) => [0, 1, 2].includes(tile as number))
+    !tiles.every(
+      (tile: unknown) => typeof tile === 'number' && validTileValues.has(tile)
+    )
   ) {
     return c.json<ErrorResponse>(
       {
         status: 'error',
         message:
-          'Level payload must contain exactly 64 tiles with values 0, 1, or 2.',
+          'Level payload must contain exactly 64 tiles with supported values.',
       },
       400
     );

@@ -6,16 +6,17 @@ import {
   LEVEL_COLS,
   LEVEL_ROWS,
   LEVEL_TILE_COUNT,
-  LevelTileType,
+  TileData,
 } from '../../shared/level';
 
 const BUTTON_Y_OFFSET = 80;
 
 export class Editor extends Scene {
   tileSprites: Phaser.GameObjects.Image[] = [];
-  tileOverlays: Phaser.GameObjects.Rectangle[] = [];
-  tileData = [...DEFAULT_LEVEL.tiles] as LevelTileType[];
-  selectedType: LevelTileType = 1;
+  tileOverlays: Phaser.GameObjects.Image[] = [];
+  overlayBaseYs: number[] = [];
+  tileData = [...DEFAULT_LEVEL.tiles] as TileData[];
+  selectedType: TileData = TileData.ROCK;
   levelId: string | null = null;
   statusText: Phaser.GameObjects.Text | null = null;
 
@@ -54,12 +55,15 @@ export class Editor extends Scene {
           .on('pointerdown', () => this.setTile(index));
 
         const overlay = this.add
-          .rectangle(x, y, tileWidth - 10, tileHeight - 10, 0x000000, 0)
+          .image(x, y, 'tile')
+          .setDisplaySize(tileWidth - 10, tileHeight - 10)
           .setDepth(1)
-          .setOrigin(0.5);
+          .setOrigin(0.5)
+          .setVisible(false);
 
         this.tileSprites.push(tile);
         this.tileOverlays.push(overlay);
+        this.overlayBaseYs.push(y);
       }
     }
 
@@ -74,32 +78,83 @@ export class Editor extends Scene {
     this.createControlButton(
       20,
       height - BUTTON_Y_OFFSET,
-      'Add Rock',
+      40,
+      40,
+      8,
+      'rock',
       0x4a4a4a,
       () => {
-        this.selectedType = 1;
+        this.selectedType = TileData.ROCK;
+        this.updateStatus();
+      }
+    );
+    this.createControlButton(
+      70,
+      height - BUTTON_Y_OFFSET,
+      40,
+      40,
+      8,
+      'tree',
+      0x4a4a4a,
+      () => {
+        this.selectedType = TileData.TREE;
         this.updateStatus();
       }
     );
 
     this.createControlButton(
-      180,
+      120,
       height - BUTTON_Y_OFFSET,
-      'Add Hole',
+      40,
+      40,
+      8,
+      'pickaxe',
       0x4a4a4a,
       () => {
-        this.selectedType = 2;
+        this.selectedType = TileData.PICKAXE;
         this.updateStatus();
       }
     );
 
     this.createControlButton(
-      width - 180,
+      170,
       height - BUTTON_Y_OFFSET,
-      'Save Level',
-      0x2f7f3f,
+      40,
+      40,
+      8,
+      'shovel',
+      0x4a4a4a,
+      () => {
+        this.selectedType = TileData.SHOVEL;
+        this.updateStatus();
+      }
+    );
+
+    this.createControlButton(
+      220,
+      height - BUTTON_Y_OFFSET,
+      40,
+      40,
+      8,
+      'tile',
+      0x4a4a4a,
+      () => {
+        this.selectedType = TileData.BASE_TILE;
+        this.updateStatus();
+      }
+    );
+
+    this.createControlButton(
+      270,
+      height - BUTTON_Y_OFFSET,
+      40,
+      40,
+      8,
+      'knight',
+      0x4a4a4a,
       () => {
         this.saveLevel();
+        this.updateStatus();
       }
     );
 
@@ -109,29 +164,53 @@ export class Editor extends Scene {
   private createControlButton(
     x: number,
     y: number,
-    label: string,
-    backgroundColor: number,
-    onClick: () => void
-  ) {
-    const cssColor = `#${backgroundColor.toString(16).padStart(6, '0')}`;
-    this.add
-      .text(x, y, label, {
-        fontFamily: 'Arial Black',
-        fontSize: '24px',
-        color: '#ffffff',
-        backgroundColor: cssColor,
-        padding: { x: 12, y: 8 },
-      })
-      .setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', onClick);
+    width: number,
+    height: number,
+    radius: number,
+    img: string,
+    fillColor: number,
+    callback: () => void
+  ): Phaser.GameObjects.Container {
+    const graphics = this.add.graphics();
+    graphics.fillStyle(fillColor, 1);
+    graphics.fillRoundedRect(0, 0, width, height, radius);
+    graphics.lineStyle(2, 0x000000, 1);
+    graphics.strokeRoundedRect(0, 0, width, height, radius);
+
+    const icon = this.add.image(width / 2, height / 2, img).setOrigin(0.5);
+
+    const baseSize = Math.min(width, height) * 0.6;
+    const iconScale = baseSize / Math.max(icon.width, icon.height);
+    icon.setScale(iconScale);
+
+    const container = this.add.container(x, y, [graphics, icon]);
+    container.setSize(width, height);
+
+    container.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(width / 2, height / 2, width, height),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+    });
+
+    container.on('pointerdown', callback);
+    container.setDepth(20);
+
+    return container;
   }
 
   private updateStatus() {
     if (this.statusText) {
-      this.statusText.setText(
-        `Selected: ${this.selectedType === 1 ? 'Rock' : 'Hole'}`
-      );
+      if (this.selectedType === TileData.ROCK) {
+        this.statusText.setText(`Selected: Rock`);
+      } else if (this.selectedType === TileData.TREE) {
+        this.statusText.setText(`Selected: Tree`);
+      } else if (this.selectedType === TileData.PICKAXE) {
+        this.statusText.setText(`Selected: Pickaxe`);
+      } else if (this.selectedType === TileData.SHOVEL) {
+        this.statusText.setText(`Selected: Shovel`);
+      } else if (this.selectedType === TileData.BASE_TILE) {
+        this.statusText.setText(`Selected: Base tile`);
+      }
     }
   }
 
@@ -144,29 +223,57 @@ export class Editor extends Scene {
     for (let i = 0; i < LEVEL_TILE_COUNT; i++) {
       const overlay = this.tileOverlays[i];
       const type = this.tileData[i];
+      const baseY = this.overlayBaseYs[i] ?? 0;
 
-      if (type === 0) {
-        overlay.setVisible(false);
-      } else {
-        overlay.setFillStyle(getTileColor(type), 1);
-        overlay.setVisible(true);
+      if (type === TileData.ROCK) {
+        overlay?.setTexture('rock').setVisible(true);
+        overlay?.setY(baseY - 18);
+      } else if (type === TileData.TREE) {
+        overlay?.setTexture('tree').setVisible(true);
+        overlay?.setY(baseY - 18);
+      } else if (type === TileData.PICKAXE) {
+        overlay?.setTexture('pickaxe').setVisible(true);
+        overlay?.setY(baseY);
+      } else if (type === TileData.SHOVEL) {
+        overlay?.setTexture('shovel').setVisible(true);
+        overlay?.setY(baseY);
+      } else if (type === TileData.BASE_TILE) {
+        overlay?.setTexture('tile').setVisible(false);
+        overlay?.setY(baseY);
       }
     }
   }
 
   private async saveLevel() {
-    const response = await fetch('/api/level', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tiles: this.tileData, levelId: this.levelId }),
-    });
+    try {
+      const response = await fetch('/api/level', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tiles: this.tileData, levelId: this.levelId }),
+      });
 
-    const result = await response.json();
-    if (result?.levelId) {
-      this.levelId = result.levelId;
-      localStorage.setItem('lastLevelId', this.levelId);
+      const result = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = result?.message ?? 'Failed to save level';
+        if (this.statusText) {
+          this.statusText.setText(message);
+        }
+        return;
+      }
+
+      if (result?.levelId) {
+        this.levelId = result.levelId;
+        localStorage.setItem('lastLevelId', this.levelId);
+        if (this.statusText) {
+          this.statusText.setText(`Saved level ${this.levelId}`);
+        }
+      }
+    } catch (error) {
       if (this.statusText) {
-        this.statusText.setText(`Saved level ${this.levelId}`);
+        this.statusText.setText(
+          error instanceof Error ? error.message : 'Failed to save level'
+        );
       }
     }
   }

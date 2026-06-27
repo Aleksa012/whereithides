@@ -9,12 +9,6 @@ export class Preloader extends Scene {
     this.add.image(512, 384, 'background');
 
     this.add.rectangle(512, 384, 468, 32).setStrokeStyle(1, 0xffffff);
-
-    const bar = this.add.rectangle(512 - 230, 384, 4, 28, 0xffffff);
-
-    this.load.on('progress', (progress: number) => {
-      bar.width = 4 + 460 * progress;
-    });
   }
 
   preload() {
@@ -26,7 +20,17 @@ export class Preloader extends Scene {
     });
 
     this.load.image('logo', 'logo.png');
+
+    //Road
     this.load.image('tile', 'roads/FieldsTile_01.png');
+
+    //Decor
+    this.load.image('rock', 'decor/Rock2_1.png');
+    this.load.image('tree', 'decor/Palm_tree2_1.png');
+
+    //Tools
+    this.load.image('pickaxe', 'tools/Icon31_01.png');
+    this.load.image('shovel', 'tools/Icon31_05.png');
   }
 
   create() {

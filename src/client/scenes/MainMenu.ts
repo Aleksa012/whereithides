@@ -7,6 +7,7 @@ export class MainMenu extends Scene {
   title: GameObjects.Text | null = null;
   playButton: GameObjects.Container | null = null;
   editorButton: GameObjects.Container | null = null;
+  loadButton: GameObjects.Container | null = null;
   levelIdText: GameObjects.Text | null = null;
 
   constructor() {
@@ -19,6 +20,7 @@ export class MainMenu extends Scene {
     this.title = null;
     this.playButton = null;
     this.editorButton = null;
+    this.loadButton = null;
     this.levelIdText = null;
   }
 
@@ -117,6 +119,24 @@ export class MainMenu extends Scene {
       );
     }
 
+    if (!this.loadButton) {
+      this.loadButton = this.createButton(
+        width / 2 - buttonSpacing / 2,
+        buttonY + (buttonHeight + 10) * 2,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius,
+        'Load Level',
+        0x3f5f8b,
+        () => this.loadSavedLevel()
+      );
+    } else {
+      this.loadButton!.setPosition(
+        width / 2 - buttonSpacing / 2,
+        buttonY + (buttonHeight + 10) * 2
+      );
+    }
+
     const currentLevelId = window.localStorage.getItem('lastLevelId') || 'none';
     if (!this.levelIdText) {
       this.levelIdText = this.add
@@ -134,6 +154,34 @@ export class MainMenu extends Scene {
     } else {
       this.levelIdText!.setText(`Loaded Level ID: ${currentLevelId}`);
       this.levelIdText!.setPosition(width / 2, buttonY + buttonHeight * 3 + 30);
+    }
+  }
+
+  private async loadSavedLevel(): Promise<void> {
+    const savedLevelId = window.localStorage.getItem('lastLevelId');
+
+    if (!savedLevelId) {
+      this.levelIdText?.setText('No saved level to load');
+      return;
+    }
+
+    this.levelIdText?.setText(`Loading level ${savedLevelId}...`);
+
+    try {
+      const response = await fetch(`/api/level/${savedLevelId}`);
+      const data = await response.json();
+
+      if (!data?.levelData?.tiles) {
+        this.levelIdText?.setText(`Level ${savedLevelId} not found`);
+        return;
+      }
+
+      this.scene.start('Editor', {
+        levelId: data.levelId,
+        tiles: data.levelData.tiles,
+      });
+    } catch {
+      this.levelIdText?.setText('Failed to load saved level');
     }
   }
 
