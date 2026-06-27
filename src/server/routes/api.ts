@@ -91,3 +91,65 @@ api.post('/decrement', async (c) => {
     type: 'decrement',
   });
 });
+
+api.post('/level', async (c) => {
+  const payload = await c.req.json();
+  const tiles = Array.isArray(payload?.tiles) ? payload.tiles : null;
+
+  if (
+    !tiles ||
+    tiles.length !== 64 ||
+    !tiles.every((tile: unknown) => [0, 1, 2].includes(tile as number))
+  ) {
+    return c.json<ErrorResponse>(
+      {
+        status: 'error',
+        message:
+          'Level payload must contain exactly 64 tiles with values 0, 1, or 2.',
+      },
+      400
+    );
+  }
+
+  const levelId = payload.levelId
+    ? String(payload.levelId)
+    : `level-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  await redis.set(`level:${levelId}`, JSON.stringify({ tiles }));
+
+  return c.json({
+    type: 'save-level',
+    levelId,
+  });
+});
+
+api.get('/level/:id', async (c) => {
+  const levelId = c.req.param('id');
+  if (!levelId) {
+    return c.json<ErrorResponse>(
+      {
+        status: 'error',
+        message: 'Level id is required.',
+      },
+      400
+    );
+  }
+
+  const stored = await redis.get(`level:${levelId}`);
+  if (!stored) {
+    return c.json({
+      type: 'load-level',
+      levelId,
+      levelData: null,
+    });
+  }
+
+  const parsed = JSON.parse(stored) as { tiles: number[] };
+  return c.json({
+    type: 'load-level',
+    levelId,
+    levelData: {
+      tiles: parsed.tiles,
+    },
+  });
+});

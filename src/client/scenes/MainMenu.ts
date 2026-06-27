@@ -1,75 +1,179 @@
 import { Scene, GameObjects } from 'phaser';
+import * as Phaser from 'phaser';
 
 export class MainMenu extends Scene {
-  background: GameObjects.Image | null = null;
-  logo: GameObjects.Image | null = null;
+  tileBackground: Phaser.GameObjects.TileSprite | null = null;
+  titleTile: GameObjects.Rectangle | null = null;
   title: GameObjects.Text | null = null;
+  playButton: GameObjects.Container | null = null;
+  editorButton: GameObjects.Container | null = null;
+  levelIdText: GameObjects.Text | null = null;
 
   constructor() {
     super('MainMenu');
   }
 
-  /**
-   * Reset cached GameObject references every time the scene starts.
-   * The same Scene instance is reused by Phaser, so we must ensure
-   * stale (destroyed) objects are cleared out when the scene restarts.
-   */
   init(): void {
-    this.background = null;
-    this.logo = null;
+    this.tileBackground = null;
+    this.titleTile = null;
     this.title = null;
+    this.playButton = null;
+    this.editorButton = null;
+    this.levelIdText = null;
   }
 
   create() {
     this.refreshLayout();
 
-    // Re-calculate positions whenever the game canvas is resized (e.g. orientation change).
     this.scale.on('resize', () => this.refreshLayout());
 
-    this.input.once('pointerdown', () => {
-      this.scene.start('Game');
+    this.events.on('update', (_time: number, delta: number) => {
+      this.scrollTileBackground(delta);
     });
   }
 
-  /**
-   * Positions and (lightly) scales all UI elements based on the current game size.
-   * Call this from create() and from any resize events.
-   */
+  private scrollTileBackground(delta: number): void {
+    if (this.tileBackground) {
+      this.tileBackground.tilePositionY += delta * 0.02;
+    }
+  }
+
   private refreshLayout(): void {
     const { width, height } = this.scale;
 
-    // Resize camera to new viewport to prevent black bars
     this.cameras.resize(width, height);
 
-    // Background – stretch to fill the whole canvas
-    if (!this.background) {
-      this.background = this.add.image(0, 0, 'background').setOrigin(0);
+    if (!this.tileBackground) {
+      this.tileBackground = this.add
+        .tileSprite(0, 0, width, height, 'tile')
+        .setOrigin(0)
+        .setScrollFactor(0);
+
+      const tileImage = this.textures
+        .get('tile')
+        .getSourceImage() as HTMLImageElement;
+      if (tileImage && tileImage.width && tileImage.height) {
+        this.tileBackground.setTileScale(
+          32 / tileImage.width,
+          32 / tileImage.height
+        );
+      }
+    } else {
+      this.tileBackground.setSize(width, height);
     }
-    this.background!.setDisplaySize(width, height);
 
-    // Logo – keep aspect but scale down for very small screens
-    const scaleFactor = Math.min(width / 1024, height / 768);
+    const titleY = height * 0.22;
 
-    if (!this.logo) {
-      this.logo = this.add.image(0, 0, 'logo');
-    }
-    this.logo!.setPosition(width / 2, height * 0.38).setScale(scaleFactor);
-
-    // Title text – create once, then scale on resize
-    const baseFontSize = 38;
     if (!this.title) {
       this.title = this.add
-        .text(0, 0, 'Main Menu', {
+        .text(width / 2, titleY, 'Where it hides', {
           fontFamily: 'Arial Black',
-          fontSize: `${baseFontSize}px`,
-          color: '#ffffff',
-          stroke: '#000000',
+          fontSize: '40px',
+          color: '#4f3812',
+          stroke: '#ffffff',
           strokeThickness: 8,
           align: 'center',
         })
         .setOrigin(0.5);
     }
-    this.title!.setPosition(width / 2, height * 0.6);
-    this.title!.setScale(scaleFactor);
+
+    const buttonY = height * 0.4;
+    const buttonSpacing = 260;
+
+    const buttonWidth = 260;
+    const buttonHeight = 50;
+    const buttonRadius = 18;
+
+    if (!this.playButton) {
+      this.playButton = this.createButton(
+        width / 2 - buttonSpacing / 2,
+        buttonY,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius,
+        'Play',
+        0x3a5a31,
+        () => this.scene.start('Game')
+      );
+    } else {
+      this.playButton!.setPosition(width / 2 - buttonSpacing / 2, buttonY);
+    }
+
+    if (!this.editorButton) {
+      this.editorButton = this.createButton(
+        width / 2 - buttonSpacing / 2,
+        buttonY + buttonHeight + 10,
+        buttonWidth,
+        buttonHeight,
+        buttonRadius,
+        'Create Level',
+        0x5f3f1f,
+        () => this.scene.start('Editor')
+      );
+    } else {
+      this.editorButton!.setPosition(
+        width / 2 - buttonSpacing / 2,
+        buttonY + buttonHeight + 10
+      );
+    }
+
+    const currentLevelId = window.localStorage.getItem('lastLevelId') || 'none';
+    if (!this.levelIdText) {
+      this.levelIdText = this.add
+        .text(
+          width / 2,
+          buttonY + buttonHeight * 3 + 30,
+          `Loaded Level ID: ${currentLevelId}`,
+          {
+            fontFamily: 'Arial',
+            fontSize: '20px',
+            color: '#4f3812',
+          }
+        )
+        .setOrigin(0.5);
+    } else {
+      this.levelIdText!.setText(`Loaded Level ID: ${currentLevelId}`);
+      this.levelIdText!.setPosition(width / 2, buttonY + buttonHeight * 3 + 30);
+    }
+  }
+
+  private createButton(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+    label: string,
+    fillColor: number,
+    callback: () => void
+  ): GameObjects.Container {
+    const graphics = this.add.graphics();
+    graphics.fillStyle(fillColor, 1);
+    graphics.fillRoundedRect(0, 0, width, height, radius);
+    graphics.lineStyle(2, 0x000000, 1);
+    graphics.strokeRoundedRect(0, 0, width, height, radius);
+
+    const text = this.add
+      .text(width / 2, height / 2, label, {
+        fontFamily: 'Arial Black',
+        fontSize: `${Math.round(height * 0.4)}px`,
+        color: '#ffffff',
+        align: 'center',
+      })
+      .setOrigin(0.5);
+
+    const container = this.add.container(x, y, [graphics, text]);
+    container.setSize(width, height);
+
+    container.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(width / 2, height / 2, width, height),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+    });
+
+    container.on('pointerdown', callback);
+    container.setDepth(20);
+
+    return container;
   }
 }
