@@ -1,30 +1,35 @@
-import { navigateTo, context, requestExpandedMode } from '@devvit/web/client';
+import { context, requestExpandedMode } from '@devvit/web/client';
 
-const docsLink = document.getElementById('docs-link') as HTMLDivElement;
-const playtestLink = document.getElementById('playtest-link') as HTMLDivElement;
-const discordLink = document.getElementById('discord-link') as HTMLDivElement;
-const startButton = document.getElementById('start-button') as HTMLButtonElement;
-
-startButton.addEventListener('click', (e) => {
-  requestExpandedMode(e, 'game');
-});
-
-docsLink.addEventListener('click', () => {
-  navigateTo('https://developers.reddit.com/docs');
-});
-
-playtestLink.addEventListener('click', () => {
-  navigateTo('https://www.reddit.com/r/Devvit');
-});
-
-discordLink.addEventListener('click', () => {
-  navigateTo('https://discord.com/invite/R7yu2wh9Qz');
-});
-
+const actionButton = document.getElementById(
+  'start-button'
+) as HTMLButtonElement;
 const titleElement = document.getElementById('title') as HTMLHeadingElement;
+const descriptionElement = document.getElementById(
+  'description'
+) as HTMLParagraphElement;
+const levelIdElement = document.getElementById(
+  'level-id'
+) as HTMLParagraphElement;
+
+const hasPost = !!context.postData;
+const levelId = context.postId;
 
 function init() {
-  titleElement.textContent = `Hey ${context.username ?? 'user'} 👋`;
+  titleElement.textContent = 'Where it hides';
+  descriptionElement.textContent = hasPost
+    ? 'How to play:'
+    : `Tap create to make a new level.`;
+
+  actionButton.textContent = hasPost ? 'Play' : 'Create Level';
+  actionButton.addEventListener('click', (event) => {
+    requestExpandedMode(event, 'game');
+  });
+
+  if (levelId) {
+    levelIdElement.textContent = `Loaded Level ID: ${levelId}`;
+  } else {
+    levelIdElement.textContent = 'No level ID loaded';
+  }
 }
 
 init();

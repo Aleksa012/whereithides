@@ -99,8 +99,8 @@ export class Game extends Scene {
 
     this.character = this.add
       .sprite(64, 64, 'knight', 0)
-      .setScale(40)
-      .setDepth(10);
+      .setDepth(10)
+      .setDisplaySize(this.scale.width / 8 - 4, this.scale.width / 8 - 4);
 
     this.winText = this.add
       .text(this.scale.width / 2, this.scale.height / 2, 'You Won!', {
@@ -702,7 +702,7 @@ export class Game extends Scene {
     this.tilePositions = [];
 
     const tileWidth = width / LEVEL_COLS;
-    const tileHeight = height / LEVEL_ROWS;
+    const tileHeight = tileWidth;
 
     const baseTileIndices = this.tiles
       .map((t, i) => (t === TileData.BASE_TILE ? i : -1))
@@ -716,7 +716,8 @@ export class Game extends Scene {
       for (let col = 0; col < LEVEL_COLS; col++) {
         const index = row * LEVEL_COLS + col;
         const x = col * tileWidth + tileWidth / 2;
-        const y = row * tileHeight + tileHeight / 2;
+        const y =
+          row * tileHeight + tileHeight / 2 + (height - tileHeight * 8) / 2;
 
         const tile = this.add
           .image(x, y, 'tile')
@@ -750,22 +751,24 @@ export class Game extends Scene {
     if (!overlay) return;
     const type = this.tiles[index] ?? TileData.BASE_TILE;
     const baseY = this.tilePositions[index]?.y ?? 0;
-    const baseTileHeight = this.scale.height / 8;
     const baseTileWidth = this.scale.width / 8;
+    const baseTileHeight = baseTileWidth;
 
     switch (type) {
       case TileData.ROCK:
         overlay
           .setTexture('rock')
           .setVisible(true)
-          .setY(baseY - 18);
+          .setY(baseY - 4)
+          .setDepth(60);
 
         break;
       case TileData.TREE:
         overlay
           .setTexture('tree')
           .setVisible(true)
-          .setY(baseY - 18);
+          .setY(baseY - 4)
+          .setDepth(60);
 
         break;
       case TileData.PICKAXE:
@@ -773,21 +776,24 @@ export class Game extends Scene {
           .setTexture('pickaxe')
           .setVisible(true)
           .setY(baseY)
-          .setDisplaySize(baseTileWidth - 10, baseTileHeight - 10);
+          .setDisplaySize(baseTileWidth / 1.5, baseTileHeight / 1.5)
+          .setDepth(1);
         break;
       case TileData.SHOVEL:
         overlay
           .setTexture('shovel')
           .setVisible(true)
           .setY(baseY)
-          .setDisplaySize(baseTileWidth - 10, baseTileHeight - 10);
+          .setDisplaySize(baseTileWidth / 1.5, baseTileHeight / 1.5)
+          .setDepth(1);
         break;
       case TileData.DIRT:
         overlay
           .setTexture('dirt')
           .setVisible(true)
           .setY(baseY)
-          .setDisplaySize(baseTileWidth, baseTileHeight);
+          .setDisplaySize(baseTileWidth, baseTileHeight)
+          .setDepth(1);
         break;
       default:
         overlay

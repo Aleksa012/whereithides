@@ -1,3 +1,4 @@
+import { context } from '@devvit/web/client';
 import { Scene } from 'phaser';
 
 export class Preloader extends Scene {
@@ -44,6 +45,24 @@ export class Preloader extends Scene {
       repeat: -1,
     });
 
-    this.scene.start('MainMenu');
+    if (!!context.postData) {
+      const loadSavedLevel = async () => {
+        try {
+          const response = await fetch(`/api/level`);
+          const data = await response.json();
+
+          this.scene.start('Game', {
+            levelId: data.levelId,
+            tiles: data.levelData.tiles,
+            underlyingItems: data.levelData.underlyingItems,
+            mapTileIndex: data.levelData.mapTileIndex,
+          });
+        } catch {}
+      };
+
+      loadSavedLevel();
+    } else {
+      this.scene.start('Editor');
+    }
   }
 }

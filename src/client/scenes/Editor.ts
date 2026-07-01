@@ -293,7 +293,6 @@ export class Editor extends Scene {
           break;
       }
 
-      // Gold dot in the corner marks the single map tile
       indicator?.setVisible(i === this.mapTileIndex);
     }
   }
