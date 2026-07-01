@@ -1,14 +1,16 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
   "name": "whereithides",
+  "permissions": {
+    "reddit": {
+      "asUser": ["SUBMIT_POST"]
+    }
+  },
   "post": {
     "dir": "dist/client",
     "entrypoints": {
       "default": {
         "inline": true,
-        "entry": "splash.html"
-      },
-      "game": {
         "entry": "game.html"
       }
     }

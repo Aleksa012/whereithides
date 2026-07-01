@@ -4,11 +4,13 @@ export enum TileData {
   TREE,
   PICKAXE,
   SHOVEL,
-  HOLE,
+  DIRT,
 }
 
 export type LevelData = {
   tiles: TileData[];
+  underlyingItems: { index: number; item: TileData }[];
+  mapTileIndex: number | null;
 };
 
 export const LEVEL_COLS = 8;
@@ -17,6 +19,8 @@ export const LEVEL_TILE_COUNT = LEVEL_COLS * LEVEL_ROWS;
 
 export const DEFAULT_LEVEL: LevelData = {
   tiles: new Array(LEVEL_TILE_COUNT).fill(TileData.BASE_TILE),
+  underlyingItems: [],
+  mapTileIndex: null,
 };
 
 export const tileBackgroundColor = 0xf4f0d8;
@@ -37,18 +41,51 @@ export const renderLevel = (tiles: TileData[]) => ({
   tiles,
 });
 
-export const validateLevelData = (input: unknown): input is LevelData => {
-  if (typeof input !== 'object' || input === null) return false;
-  const record = input as LevelData;
-  if (!Array.isArray(record.tiles)) return false;
-  if (record.tiles.length !== LEVEL_TILE_COUNT) return false;
-  return record.tiles.every(
-    (tile) =>
-      tile === TileData.BASE_TILE ||
-      tile === TileData.ROCK ||
-      tile === TileData.PICKAXE ||
-      tile === TileData.TREE ||
-      tile === TileData.SHOVEL ||
-      tile === TileData.HOLE
-  );
+export const validateLevelData = (payload: LevelData) => {
+  const returnObj = (isValid: boolean, errorMessage: string | null) => ({
+    isValid,
+    errorMessage,
+  });
+
+  if (!payload) {
+    return returnObj(false, 'Level payload is missing');
+  }
+
+  const tiles = Array.isArray(payload.tiles) ? payload.tiles : null;
+  const validTileValues = new Set<TileData>([
+    TileData.BASE_TILE,
+    TileData.ROCK,
+    TileData.TREE,
+    TileData.PICKAXE,
+    TileData.SHOVEL,
+    TileData.DIRT,
+  ]);
+
+  if (
+    !tiles ||
+    tiles.length !== 64 ||
+    !tiles.every(
+      (t: unknown) => typeof t === 'number' && validTileValues.has(t)
+    )
+  ) {
+    return returnObj(
+      false,
+      'Level payload must contain exactly 64 tiles with supported values.'
+    );
+  }
+
+  const underlyingItems = Array.isArray(payload?.underlyingItems)
+    ? payload.underlyingItems
+    : [];
+
+  if (
+    !underlyingItems.every(
+      (item: { item: TileData; index: number }) =>
+        typeof item.index === 'number' && typeof item.item === 'number'
+    )
+  ) {
+    return returnObj(false, 'Level underlying items are corrupted.');
+  }
+
+  return returnObj(true, null);
 };

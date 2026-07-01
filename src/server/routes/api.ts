@@ -1,11 +1,8 @@
 import { Hono } from 'hono';
-import { context, redis, reddit } from '@devvit/web/server';
-import type {
-  DecrementResponse,
-  IncrementResponse,
-  InitResponse,
-} from '../../shared/api';
-import { TileData } from '../../shared/level';
+import { context } from '@devvit/web/server';
+import { createUserPost } from '../core/post';
+import { TileData, validateLevelData } from '../../shared/level';
+import { JsonObject } from '@devvit/web/shared';
 
 type ErrorResponse = {
   status: 'error';
@@ -14,153 +11,81 @@ type ErrorResponse = {
 
 export const api = new Hono();
 
-api.get('/init', async (c) => {
-  const { postId } = context;
+api.get('/level', async (c) => {
+  const postData = context.postData as {
+    levelId: string;
+    tiles: TileData;
+    underlyingItems: { index: number; item: number }[];
+    mapTileIndex: number | null;
+  };
 
-  if (!postId) {
-    console.error('API Init Error: postId not found in devvit context');
-    return c.json<ErrorResponse>(
-      {
-        status: 'error',
-        message: 'postId is required but missing from context',
-      },
-      400
-    );
+  return c.json({
+    type: 'load-level',
+    levelId: postData.levelId,
+    levelData: {
+      tiles: postData.tiles,
+      underlyingItems: postData.underlyingItems,
+      mapTileIndex: postData.mapTileIndex ?? null,
+    },
+  });
+});
+
+api.post('/level/publish', async (c) => {
+  const payload = await c.req.json();
+
+  const title =
+    typeof payload?.title === 'string' && payload.title.trim().length > 0
+      ? payload.title.trim().slice(0, 300)
+      : 'Find it yall';
+
+  const { isValid, errorMessage } = validateLevelData(payload);
+
+  if (!isValid) {
+    return c.json({
+      errorMessage,
+    });
   }
+
+  const { tiles, underlyingItems, mapTileIndex } = payload;
+  const formattedMapTileIndex: number | null =
+    mapTileIndex === null || mapTileIndex === undefined
+      ? null
+      : typeof mapTileIndex === 'number' &&
+          Number.isInteger(mapTileIndex) &&
+          mapTileIndex >= 0 &&
+          mapTileIndex < 64
+        ? mapTileIndex
+        : null;
+
+  const levelId = payload?.levelId;
+  const levelData = {
+    tiles,
+    underlyingItems,
+    mapTileIndex: formattedMapTileIndex,
+  };
 
   try {
-    const [count, username] = await Promise.all([
-      redis.get('count'),
-      reddit.getCurrentUsername(),
-    ]);
+    const post = await createUserPost(title, {
+      levelId,
+      ...levelData,
+    } as unknown as JsonObject);
 
-    return c.json<InitResponse>({
-      type: 'init',
-      postId: postId,
-      count: count ? parseInt(count) : 0,
-      username: username ?? 'anonymous',
+    return c.json({
+      type: 'publish-level',
+      levelId,
+      postId: post.id,
+      postUrl: post.url,
     });
   } catch (error) {
-    console.error(`API Init Error for post ${postId}:`, error);
-    let errorMessage = 'Unknown error during initialization';
-    if (error instanceof Error) {
-      errorMessage = `Initialization failed: ${error.message}`;
-    }
-    return c.json<ErrorResponse>(
-      { status: 'error', message: errorMessage },
-      400
-    );
-  }
-});
-
-api.post('/increment', async (c) => {
-  const { postId } = context;
-  if (!postId) {
-    return c.json<ErrorResponse>(
-      {
-        status: 'error',
-        message: 'postId is required',
-      },
-      400
-    );
-  }
-
-  const count = await redis.incrBy('count', 1);
-  return c.json<IncrementResponse>({
-    count,
-    postId,
-    type: 'increment',
-  });
-});
-
-api.post('/decrement', async (c) => {
-  const { postId } = context;
-  if (!postId) {
-    return c.json<ErrorResponse>(
-      {
-        status: 'error',
-        message: 'postId is required',
-      },
-      400
-    );
-  }
-
-  const count = await redis.incrBy('count', -1);
-  return c.json<DecrementResponse>({
-    count,
-    postId,
-    type: 'decrement',
-  });
-});
-
-api.post('/level', async (c) => {
-  const payload = await c.req.json();
-  const tiles = Array.isArray(payload?.tiles) ? payload.tiles : null;
-  const validTileValues = new Set<TileData>([
-    TileData.BASE_TILE,
-    TileData.ROCK,
-    TileData.TREE,
-    TileData.PICKAXE,
-    TileData.SHOVEL,
-    TileData.HOLE,
-  ]);
-
-  if (
-    !tiles ||
-    tiles.length !== 64 ||
-    !tiles.every(
-      (tile: unknown) => typeof tile === 'number' && validTileValues.has(tile)
-    )
-  ) {
     return c.json<ErrorResponse>(
       {
         status: 'error',
         message:
-          'Level payload must contain exactly 64 tiles with supported values.',
+          error instanceof Error
+            ? `Failed to publish post: ${error.message}`
+            : 'Failed to publish post.',
       },
-      400
+      500
     );
   }
-
-  const levelId = payload.levelId
-    ? String(payload.levelId)
-    : `level-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  await redis.set(`level:${levelId}`, JSON.stringify({ tiles }));
-
-  return c.json({
-    type: 'save-level',
-    levelId,
-  });
-});
-
-api.get('/level/:id', async (c) => {
-  const levelId = c.req.param('id');
-  if (!levelId) {
-    return c.json<ErrorResponse>(
-      {
-        status: 'error',
-        message: 'Level id is required.',
-      },
-      400
-    );
-  }
-
-  const stored = await redis.get(`level:${levelId}`);
-  if (!stored) {
-    return c.json({
-      type: 'load-level',
-      levelId,
-      levelData: null,
-    });
-  }
-
-  const parsed = JSON.parse(stored) as { tiles: number[] };
-  return c.json({
-    type: 'load-level',
-    levelId,
-    levelData: {
-      tiles: parsed.tiles,
-    },
-  });
 });

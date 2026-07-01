@@ -1,5 +1,6 @@
 import { Scene, GameObjects } from 'phaser';
 import * as Phaser from 'phaser';
+import { context } from '@devvit/web/client';
 
 export class MainMenu extends Scene {
   tileBackground: Phaser.GameObjects.TileSprite | null = null;
@@ -86,55 +87,43 @@ export class MainMenu extends Scene {
     const buttonHeight = 50;
     const buttonRadius = 18;
 
-    if (!this.playButton) {
-      this.playButton = this.createButton(
-        width / 2 - buttonSpacing / 2,
-        buttonY,
-        buttonWidth,
-        buttonHeight,
-        buttonRadius,
-        'Play',
-        0x3a5a31,
-        () => this.scene.start('Game')
-      );
-    } else {
-      this.playButton!.setPosition(width / 2 - buttonSpacing / 2, buttonY);
+    console.log(context);
+
+    if (!!context.postData) {
+      if (!this.playButton) {
+        this.playButton = this.createButton(
+          width / 2 - buttonSpacing / 2,
+          buttonY,
+          buttonWidth,
+          buttonHeight,
+          buttonRadius,
+          'Play',
+          0x3a5a31,
+          () => this.loadSavedLevel()
+        );
+      } else {
+        this.playButton!.setPosition(width / 2 - buttonSpacing / 2, buttonY);
+      }
     }
 
-    if (!this.editorButton) {
-      this.editorButton = this.createButton(
-        width / 2 - buttonSpacing / 2,
-        buttonY + buttonHeight + 10,
-        buttonWidth,
-        buttonHeight,
-        buttonRadius,
-        'Create Level',
-        0x5f3f1f,
-        () => this.scene.start('Editor')
-      );
-    } else {
-      this.editorButton!.setPosition(
-        width / 2 - buttonSpacing / 2,
-        buttonY + buttonHeight + 10
-      );
-    }
-
-    if (!this.loadButton) {
-      this.loadButton = this.createButton(
-        width / 2 - buttonSpacing / 2,
-        buttonY + (buttonHeight + 10) * 2,
-        buttonWidth,
-        buttonHeight,
-        buttonRadius,
-        'Load Level',
-        0x3f5f8b,
-        () => this.loadSavedLevel()
-      );
-    } else {
-      this.loadButton!.setPosition(
-        width / 2 - buttonSpacing / 2,
-        buttonY + (buttonHeight + 10) * 2
-      );
+    if (!context.postData) {
+      if (!this.editorButton) {
+        this.editorButton = this.createButton(
+          width / 2 - buttonSpacing / 2,
+          buttonY + buttonHeight + 10,
+          buttonWidth,
+          buttonHeight,
+          buttonRadius,
+          'Create Level',
+          0x5f3f1f,
+          () => this.scene.start('Editor')
+        );
+      } else {
+        this.editorButton!.setPosition(
+          width / 2 - buttonSpacing / 2,
+          buttonY + buttonHeight + 10
+        );
+      }
     }
 
     const currentLevelId = window.localStorage.getItem('lastLevelId') || 'none';
@@ -158,17 +147,10 @@ export class MainMenu extends Scene {
   }
 
   private async loadSavedLevel(): Promise<void> {
-    const savedLevelId = window.localStorage.getItem('lastLevelId');
-
-    if (!savedLevelId) {
-      this.levelIdText?.setText('No saved level to load');
-      return;
-    }
-
-    this.levelIdText?.setText(`Loading level ${savedLevelId}...`);
+    const savedLevelId = context.postId;
 
     try {
-      const response = await fetch(`/api/level/${savedLevelId}`);
+      const response = await fetch(`/api/level/${context.postId}`);
       const data = await response.json();
 
       if (!data?.levelData?.tiles) {
@@ -176,7 +158,7 @@ export class MainMenu extends Scene {
         return;
       }
 
-      this.scene.start('Editor', {
+      this.scene.start('Game', {
         levelId: data.levelId,
         tiles: data.levelData.tiles,
       });
