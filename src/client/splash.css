@@ -8,6 +8,13 @@
   color: #000000;
 }
 
+.knight {
+  width: 25%;
+  max-width: 200px;
+  margin: 0 auto;
+  image-rendering: pixelated;
+}
+
 .app {
   display: flex;
   position: relative;
@@ -17,14 +24,19 @@
   height: 100vh;
   margin: 0;
   gap: 16px;
-  background-color: burlywood;
+  background-image: url('/assets/roads/FieldsTile_01.png');
+  background-size: 64px 64px;
+  background-repeat: repeat;
+  animation: move-background 12s linear infinite;
 }
 
-.snoo {
-  object-fit: contain;
-  width: 25%;
-  max-width: 200px;
-  margin: 0 auto;
+@keyframes move-background {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 64px 64px;
+  }
 }
 
 .content {
@@ -38,12 +50,19 @@
   font-size: 1.5em;
   font-weight: bold;
   text-align: center;
+  color: #40101b;
 }
 
 .description {
   font-size: 1em;
   text-align: center;
-  color: #5c6c74;
+  color: #40101b;
+  font-weight: bold;
+}
+
+.level-id {
+  color: #40101b;
+  font-weight: bold;
 }
 
 .code {
@@ -53,7 +72,7 @@
 }
 
 .start-button {
-  background-color: #d93900;
+  background-color: #41d900;
   color: #ffffff;
   display: flex;
   align-items: center;

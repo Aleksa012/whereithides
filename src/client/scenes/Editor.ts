@@ -15,14 +15,18 @@ export class Editor extends Scene {
   tileOverlays: Phaser.GameObjects.Image[] = [];
   // Small dot indicators for the map tile — one per tile slot, mostly hidden
   mapIndicators: Phaser.GameObjects.Image[] = [];
+  startIndicators: Phaser.GameObjects.Text[] = [];
+  winningIndicators: Phaser.GameObjects.Text[] = [];
   overlayBaseYs: number[] = [];
   tileData = [...DEFAULT_LEVEL.tiles] as TileData[];
   underlyingItems: Map<number, TileData> = new Map();
 
   // Only one tile can hold the hidden map — null means none placed yet
   mapTileIndex: number | null = null;
+  startTileIndex: number | null = null;
+  winningTileIndex: number | null = null;
 
-  selectedType: TileData | 'map' = TileData.ROCK;
+  selectedType: TileData | 'map' | 'start' | 'winning' = TileData.ROCK;
   levelId: string | null = null;
   statusText: Phaser.GameObjects.Text | null = null;
 
@@ -37,21 +41,13 @@ export class Editor extends Scene {
     const tileWidth = width / LEVEL_COLS;
     const tileHeight = (height - 180) / LEVEL_ROWS;
 
-    this.add
-      .text(width / 2, 40, 'Edit Level', {
-        fontFamily: 'Arial Black',
-        fontSize: '48px',
-        color: '#2f2f2f',
-        stroke: '#000000',
-        strokeThickness: 6,
-      })
-      .setOrigin(0.5);
+    const tileTop = 40;
 
     for (let row = 0; row < LEVEL_ROWS; row++) {
       for (let col = 0; col < LEVEL_COLS; col++) {
         const index = row * LEVEL_COLS + col;
         const x = col * tileWidth + tileWidth / 2;
-        const y = row * tileHeight + tileHeight / 2 + 80;
+        const y = row * tileHeight + tileHeight / 2 + tileTop;
 
         const tile = this.add
           .image(x, y, 'tile')
@@ -73,15 +69,41 @@ export class Editor extends Scene {
           .setDepth(3)
           .setVisible(false);
 
+        const startIndicator = this.add
+          .text(x, y, 'S', {
+            fontFamily: 'Arial Black',
+            fontSize: 18,
+            color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 4,
+          })
+          .setOrigin(0.5)
+          .setDepth(4)
+          .setVisible(false);
+
+        const winningIndicator = this.add
+          .text(x, y, 'W', {
+            fontFamily: 'Arial Black',
+            fontSize: 18,
+            color: '#ffd700',
+            stroke: '#000000',
+            strokeThickness: 4,
+          })
+          .setOrigin(0.5)
+          .setDepth(5)
+          .setVisible(false);
+
         this.tileSprites.push(tile);
         this.tileOverlays.push(overlay);
         this.mapIndicators.push(indicator);
+        this.startIndicators.push(startIndicator);
+        this.winningIndicators.push(winningIndicator);
         this.overlayBaseYs.push(y);
       }
     }
 
     this.statusText = this.add
-      .text(width / 2, height - 30, 'Selected: Rock', {
+      .text(width / 2, tileTop / 2, 'Selected: Rock', {
         fontFamily: 'Arial',
         fontSize: '22px',
         color: '#2f2f2f',
@@ -89,13 +111,15 @@ export class Editor extends Scene {
       .setOrigin(0.5);
 
     // ── Tool buttons ────────────────────────────────────────────────────────
-    const buttonY = height - BUTTON_Y_OFFSET;
     const btnSize = 40;
     const btnGap = 50;
+    const buttonRowY1 = height - BUTTON_Y_OFFSET - btnGap - 4;
+    const buttonRowY2 = height - BUTTON_Y_OFFSET;
+    const saveButtonY = height - 20;
 
     this.createToolButton(
       20 + btnGap * 0,
-      buttonY,
+      buttonRowY1,
       btnSize,
       'rock',
       0x4a4a4a,
@@ -106,7 +130,7 @@ export class Editor extends Scene {
     );
     this.createToolButton(
       20 + btnGap * 1,
-      buttonY,
+      buttonRowY1,
       btnSize,
       'tree',
       0x4a4a4a,
@@ -117,7 +141,7 @@ export class Editor extends Scene {
     );
     this.createToolButton(
       20 + btnGap * 2,
-      buttonY,
+      buttonRowY1,
       btnSize,
       'pickaxe',
       0x4a4a4a,
@@ -128,7 +152,7 @@ export class Editor extends Scene {
     );
     this.createToolButton(
       20 + btnGap * 3,
-      buttonY,
+      buttonRowY1,
       btnSize,
       'shovel',
       0x4a4a4a,
@@ -137,9 +161,10 @@ export class Editor extends Scene {
         this.updateStatus();
       }
     );
+
     this.createToolButton(
-      20 + btnGap * 4,
-      buttonY,
+      20 + btnGap * 0,
+      buttonRowY2,
       btnSize,
       'tile',
       0x4a4a4a,
@@ -148,11 +173,9 @@ export class Editor extends Scene {
         this.updateStatus();
       }
     );
-
-    // MAP button — gold background to stand out
     this.createToolButton(
-      20 + btnGap * 5,
-      buttonY,
+      20 + btnGap * 1,
+      buttonRowY2,
       btnSize,
       'map',
       0x8b6914,
@@ -161,13 +184,35 @@ export class Editor extends Scene {
         this.updateStatus();
       }
     );
-
-    // Save button
     this.createToolButton(
-      20 + btnGap * 6,
-      buttonY,
+      20 + btnGap * 2,
+      buttonRowY2,
       btnSize,
       'knight',
+      0x3a5a31,
+      () => {
+        this.selectedType = 'start';
+        this.updateStatus();
+      }
+    );
+    this.createToolButton(
+      20 + btnGap * 3,
+      buttonRowY2,
+      btnSize,
+      'logo',
+      0x8b6914,
+      () => {
+        this.selectedType = 'winning';
+        this.updateStatus();
+      }
+    );
+
+    this.createActionButton(
+      width / 2 - 100,
+      saveButtonY,
+      200,
+      44,
+      'Save',
       0x3a5a31,
       () => {
         this.openPublishModal();
@@ -210,6 +255,42 @@ export class Editor extends Scene {
     return container;
   }
 
+  private createActionButton(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    label: string,
+    fillColor: number,
+    callback: () => void
+  ): Phaser.GameObjects.Container {
+    const radius = 10;
+    const graphics = this.add.graphics();
+    graphics.fillStyle(fillColor, 1);
+    graphics.fillRoundedRect(0, 0, width, height, radius);
+    graphics.lineStyle(2, 0x000000, 1);
+    graphics.strokeRoundedRect(0, 0, width, height, radius);
+
+    const text = this.add
+      .text(width / 2, height / 2, label, {
+        fontFamily: 'Arial Black',
+        fontSize: 18,
+        color: '#ffffff',
+      })
+      .setOrigin(0.5);
+
+    const container = this.add.container(x, y, [graphics, text]);
+    container.setSize(width, height);
+    container.setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(width / 2, height / 2, width, height),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+    });
+    container.on('pointerdown', callback);
+    container.setDepth(20);
+    return container;
+  }
+
   // ─── Status ────────────────────────────────────────────────────────────────
 
   private updateStatus() {
@@ -221,6 +302,8 @@ export class Editor extends Scene {
       [TileData.SHOVEL]: 'Shovel',
       [TileData.BASE_TILE]: 'Base tile',
       map: 'Map',
+      start: 'Start',
+      winning: 'Winning square',
     };
     const key = this.selectedType === 'map' ? 'map' : String(this.selectedType);
     this.statusText.setText(`Selected: ${labels[key] ?? '?'}`);
@@ -229,10 +312,42 @@ export class Editor extends Scene {
   // ─── Tile placement ────────────────────────────────────────────────────────
 
   private setTile(index: number) {
+    if (
+      (this.startTileIndex === index || this.winningTileIndex === index) &&
+      this.selectedType !== TileData.BASE_TILE &&
+      this.selectedType !== 'start' &&
+      this.selectedType !== 'winning' &&
+      this.selectedType !== 'map'
+    ) {
+      return;
+    }
+
     if (this.selectedType === 'map') {
       // Move the map to this tile (clears previous location automatically)
       this.mapTileIndex = index;
       this.renderGrid();
+      return;
+    }
+
+    if (this.selectedType === 'start') {
+      if (!this.isValidStartIndex(index)) {
+        return;
+      }
+      this.startTileIndex = index;
+      if (this.winningTileIndex === index) {
+        this.winningTileIndex = null;
+      }
+      this.tileData[index] = TileData.BASE_TILE;
+      this.underlyingItems.delete(index);
+      this.renderGrid();
+      return;
+    }
+
+    if (this.selectedType === 'winning') {
+      if (this.isValidWinningIndex(index)) {
+        this.winningTileIndex = index;
+        this.renderGrid();
+      }
       return;
     }
 
@@ -258,6 +373,15 @@ export class Editor extends Scene {
     }
 
     this.renderGrid();
+  }
+
+  private isValidStartIndex(index: number) {
+    return this.tileData[index] === TileData.BASE_TILE;
+  }
+
+  private isValidWinningIndex(index: number) {
+    const type = this.tileData[index];
+    return type === TileData.BASE_TILE && index !== this.startTileIndex;
   }
 
   // ─── Grid render ───────────────────────────────────────────────────────────
@@ -294,6 +418,8 @@ export class Editor extends Scene {
       }
 
       indicator?.setVisible(i === this.mapTileIndex);
+      this.startIndicators[i]?.setVisible(i === this.startTileIndex);
+      this.winningIndicators[i]?.setVisible(i === this.winningTileIndex);
     }
   }
 
@@ -302,6 +428,20 @@ export class Editor extends Scene {
   ): Promise<{ success: true } | { success: false; message: string }> {
     try {
       const levelId = crypto.randomUUID();
+
+      const tilesToSave = [...this.tileData];
+      if (
+        this.startTileIndex !== null &&
+        tilesToSave[this.startTileIndex] !== TileData.BASE_TILE
+      ) {
+        tilesToSave[this.startTileIndex] = TileData.BASE_TILE;
+      }
+      if (
+        this.winningTileIndex !== null &&
+        tilesToSave[this.winningTileIndex] !== TileData.BASE_TILE
+      ) {
+        tilesToSave[this.winningTileIndex] = TileData.BASE_TILE;
+      }
 
       const underlyingItemsPayload = Array.from(
         this.underlyingItems.entries()
@@ -313,9 +453,11 @@ export class Editor extends Scene {
         body: JSON.stringify({
           title,
           levelId,
-          tiles: this.tileData,
+          tiles: tilesToSave,
           underlyingItems: underlyingItemsPayload,
           mapTileIndex: this.mapTileIndex,
+          startTileIndex: this.startTileIndex,
+          winningTileIndex: this.winningTileIndex,
         }),
       });
 

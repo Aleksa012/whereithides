@@ -56,6 +56,8 @@ export class Preloader extends Scene {
             tiles: data.levelData.tiles,
             underlyingItems: data.levelData.underlyingItems,
             mapTileIndex: data.levelData.mapTileIndex,
+            winningTileIndex: data.levelData.winningTileIndex,
+            startTileIndex: data.levelData.startTileIndex,
           });
         } catch {}
       };

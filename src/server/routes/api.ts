@@ -14,9 +14,11 @@ export const api = new Hono();
 api.get('/level', async (c) => {
   const postData = context.postData as {
     levelId: string;
-    tiles: TileData;
+    tiles: TileData[];
     underlyingItems: { index: number; item: number }[];
     mapTileIndex: number | null;
+    startTileIndex: number | null;
+    winningTileIndex: number | null;
   };
 
   return c.json({
@@ -26,6 +28,8 @@ api.get('/level', async (c) => {
       tiles: postData.tiles,
       underlyingItems: postData.underlyingItems,
       mapTileIndex: postData.mapTileIndex ?? null,
+      startTileIndex: postData.startTileIndex ?? null,
+      winningTileIndex: postData.winningTileIndex ?? null,
     },
   });
 });
@@ -46,7 +50,13 @@ api.post('/level/publish', async (c) => {
     });
   }
 
-  const { tiles, underlyingItems, mapTileIndex } = payload;
+  const {
+    tiles,
+    underlyingItems,
+    mapTileIndex,
+    startTileIndex,
+    winningTileIndex,
+  } = payload;
   const formattedMapTileIndex: number | null =
     mapTileIndex === null || mapTileIndex === undefined
       ? null
@@ -56,12 +66,32 @@ api.post('/level/publish', async (c) => {
           mapTileIndex < 64
         ? mapTileIndex
         : null;
+  const formattedStartTileIndex: number | null =
+    startTileIndex === null || startTileIndex === undefined
+      ? null
+      : typeof startTileIndex === 'number' &&
+          Number.isInteger(startTileIndex) &&
+          startTileIndex >= 0 &&
+          startTileIndex < 64
+        ? startTileIndex
+        : null;
+  const formattedWinningTileIndex: number | null =
+    winningTileIndex === null || winningTileIndex === undefined
+      ? null
+      : typeof winningTileIndex === 'number' &&
+          Number.isInteger(winningTileIndex) &&
+          winningTileIndex >= 0 &&
+          winningTileIndex < 64
+        ? winningTileIndex
+        : null;
 
   const levelId = payload?.levelId;
   const levelData = {
     tiles,
     underlyingItems,
     mapTileIndex: formattedMapTileIndex,
+    startTileIndex: formattedStartTileIndex,
+    winningTileIndex: formattedWinningTileIndex,
   };
 
   try {

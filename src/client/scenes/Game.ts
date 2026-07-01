@@ -25,6 +25,7 @@ export class Game extends Scene {
 
   // Independent layer — which single tile index hides the map (null if none)
   mapTileIndex: number | null = null;
+  startTileIndex: number | null = null;
 
   isMoving = false;
   hasWon = false;
@@ -54,6 +55,8 @@ export class Game extends Scene {
     tiles?: TileData[];
     underlyingItems?: { index: number; item: TileData }[];
     mapTileIndex?: number | null;
+    startTileIndex?: number | null;
+    winningTileIndex?: number | null;
   }) {
     if (data?.levelId) {
       this.levelId = data.levelId;
@@ -72,6 +75,8 @@ export class Game extends Scene {
     }
 
     this.mapTileIndex = data?.mapTileIndex ?? null;
+    this.startTileIndex = data?.startTileIndex ?? null;
+    this.winningIndex = data?.winningTileIndex ?? null;
 
     // Reset session state
     this.isMoving = false;
@@ -148,43 +153,6 @@ export class Game extends Scene {
     this.character?.setScale(scaleFactor * 4);
 
     this.renderLevel(width, height);
-  }
-
-  // ─── Level Loading ─────────────────────────────────────────────────────────
-
-  async loadSavedLevel() {
-    const savedLevelId = window.localStorage.getItem('lastLevelId');
-    if (!savedLevelId) {
-      this.levelIdText?.setText('No saved level');
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/level`);
-      const result = await response.json();
-
-      if (result?.levelData?.tiles && Array.isArray(result.levelData.tiles)) {
-        this.tiles = result.levelData.tiles as TileData[];
-        this.levelId = savedLevelId;
-        this.levelIdText?.setText(`Level: ${savedLevelId}`);
-
-        this.underlyingItems.clear();
-        if (Array.isArray(result.levelData.underlyingItems)) {
-          result.levelData.underlyingItems.forEach(
-            (entry: { index: number; item: TileData }) => {
-              this.underlyingItems.set(entry.index, entry.item);
-            }
-          );
-        }
-
-        this.mapTileIndex = result.levelData.mapTileIndex ?? null;
-      } else {
-        this.levelIdText?.setText(`Level ${savedLevelId} not found`);
-      }
-    } catch (error) {
-      this.levelIdText?.setText('Failed to load saved level');
-      console.error('Failed to load saved level', error);
-    }
   }
 
   // ─── Tile Helpers ──────────────────────────────────────────────────────────
@@ -673,25 +641,6 @@ export class Game extends Scene {
   }
   // ─── Character Placement ───────────────────────────────────────────────────
 
-  private placeCharacterOnBaseTile() {
-    if (!this.character || this.hasPlacedCharacter) return;
-
-    let tileIndex = this.tiles.findIndex(
-      (t) =>
-        t === TileData.BASE_TILE ||
-        t === TileData.PICKAXE ||
-        t === TileData.SHOVEL
-    );
-    if (tileIndex < 0) tileIndex = 0;
-
-    const position = this.tilePositions[tileIndex];
-    if (position) {
-      this.character.setPosition(position.x, position.y);
-      this.hasPlacedCharacter = true;
-      this.tryCollectItem(tileIndex);
-    }
-  }
-
   // ─── Rendering ─────────────────────────────────────────────────────────────
 
   renderLevel(width: number, height: number) {
@@ -707,10 +656,20 @@ export class Game extends Scene {
     const baseTileIndices = this.tiles
       .map((t, i) => (t === TileData.BASE_TILE ? i : -1))
       .filter((i) => i >= 0);
-    this.winningIndex =
-      baseTileIndices.length > 0
-        ? baseTileIndices[Math.floor(Math.random() * baseTileIndices.length)]!
-        : null;
+    const isWinningIndexValid =
+      this.winningIndex !== null &&
+      this.winningIndex !== undefined &&
+      Number.isInteger(this.winningIndex) &&
+      this.winningIndex >= 0 &&
+      this.winningIndex < 64 &&
+      this.tiles[this.winningIndex] === TileData.BASE_TILE;
+
+    if (!isWinningIndexValid) {
+      this.winningIndex =
+        baseTileIndices.length > 0
+          ? baseTileIndices[Math.floor(Math.random() * baseTileIndices.length)]!
+          : null;
+    }
 
     for (let row = 0; row < LEVEL_ROWS; row++) {
       for (let col = 0; col < LEVEL_COLS; col++) {
@@ -742,6 +701,28 @@ export class Game extends Scene {
     }
 
     this.placeCharacterOnBaseTile();
+  }
+
+  private placeCharacterOnBaseTile() {
+    if (!this.character || this.hasPlacedCharacter) return;
+
+    let tileIndex = this.startTileIndex ?? -1;
+    if (tileIndex < 0 || !this.tilePositions[tileIndex]) {
+      tileIndex = this.tiles.findIndex(
+        (t) =>
+          t === TileData.BASE_TILE ||
+          t === TileData.PICKAXE ||
+          t === TileData.SHOVEL
+      );
+      if (tileIndex < 0) tileIndex = 0;
+    }
+
+    const position = this.tilePositions[tileIndex];
+    if (position) {
+      this.character.setPosition(position.x, position.y);
+      this.hasPlacedCharacter = true;
+      this.tryCollectItem(tileIndex);
+    }
   }
 
   private renderOverlayForTile(

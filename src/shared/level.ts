@@ -11,6 +11,8 @@ export type LevelData = {
   tiles: TileData[];
   underlyingItems: { index: number; item: TileData }[];
   mapTileIndex: number | null;
+  startTileIndex: number | null;
+  winningTileIndex: number | null;
 };
 
 export const LEVEL_COLS = 8;
@@ -21,6 +23,8 @@ export const DEFAULT_LEVEL: LevelData = {
   tiles: new Array(LEVEL_TILE_COUNT).fill(TileData.BASE_TILE),
   underlyingItems: [],
   mapTileIndex: null,
+  startTileIndex: null,
+  winningTileIndex: null,
 };
 
 export const tileBackgroundColor = 0xf4f0d8;
@@ -85,6 +89,55 @@ export const validateLevelData = (payload: LevelData) => {
     )
   ) {
     return returnObj(false, 'Level underlying items are corrupted.');
+  }
+
+  const validIndexValue = (value: unknown): boolean =>
+    value === null ||
+    (typeof value === 'number' &&
+      Number.isInteger(value) &&
+      value >= 0 &&
+      value < 64);
+
+  if (!validIndexValue(payload?.startTileIndex)) {
+    return returnObj(false, 'Start tile index is invalid.');
+  }
+
+  if (!validIndexValue(payload?.winningTileIndex)) {
+    return returnObj(false, 'Winning tile index is invalid.');
+  }
+
+  if (!validIndexValue(payload?.mapTileIndex)) {
+    return returnObj(false, 'Map tile index is invalid.');
+  }
+
+  if (
+    payload?.startTileIndex !== null &&
+    payload?.winningTileIndex !== null &&
+    payload.startTileIndex === payload.winningTileIndex
+  ) {
+    return returnObj(false, 'Start and winning tile cannot be the same tile.');
+  }
+
+  if (payload?.startTileIndex !== null) {
+    const startType = tiles[payload.startTileIndex];
+    if (
+      startType !== TileData.BASE_TILE &&
+      startType !== TileData.PICKAXE &&
+      startType !== TileData.SHOVEL &&
+      startType !== TileData.DIRT
+    ) {
+      return returnObj(
+        false,
+        'Start tile index must point to a walkable tile.'
+      );
+    }
+  }
+
+  if (payload?.winningTileIndex !== null) {
+    const winningType = tiles[payload.winningTileIndex];
+    if (winningType !== TileData.BASE_TILE) {
+      return returnObj(false, 'Winning tile index must point to a base tile.');
+    }
   }
 
   return returnObj(true, null);
