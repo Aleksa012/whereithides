@@ -3,24 +3,32 @@
   margin: 0;
   padding: 0;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    'Pixelify Sans',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
     sans-serif;
   color: #000000;
 }
 
 .knight {
-  width: 25%;
+  width: 30%;
   max-width: 200px;
-  margin: 0 auto;
   image-rendering: pixelated;
+  position: absolute;
+  z-index: 5;
+  bottom: 16px;
+  right: 16px;
+  transform: scaleX(-1);
 }
 
 .app {
   display: flex;
   position: relative;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
   height: 100vh;
   margin: 0;
   gap: 16px;
@@ -40,24 +48,36 @@
 }
 
 .content {
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: start;
   gap: 8px;
+  z-index: 10;
 }
 
 .title {
-  font-size: 1.5em;
+  font-size: 3em;
   font-weight: bold;
   text-align: center;
-  color: #40101b;
+  color: #000000;
+  text-shadow:
+    -1px -1px 0 #ddff00bf,
+    1px -1px 0 #ddff00bf,
+    -1px 1px 0 #ddff00bf,
+    1px 1px 0 #ddff00bf;
 }
 
 .description {
-  font-size: 1em;
+  font-size: 1.5em;
   text-align: center;
-  color: #40101b;
+  color: #ddff00bf;
   font-weight: bold;
+  text-shadow:
+    -1px -1px 0 #000000,
+    1px -1px 0 #000000,
+    -1px 1px 0 #000000,
+    1px 1px 0 #000000;
 }
 
 .level-id {

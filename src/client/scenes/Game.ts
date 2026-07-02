@@ -6,6 +6,7 @@ import {
   LEVEL_ROWS,
   TileData,
 } from '../../shared/level';
+import { context } from '@devvit/web/client';
 
 type TilePosition = {
   x: number;
@@ -88,14 +89,14 @@ export class Game extends Scene {
   }
 
   async create() {
+    this.cameras.main.setBackgroundColor(0xe0c492);
     this.camera = this.cameras.main;
-    this.camera.setBackgroundColor(0x222222);
 
     this.background = this.add.image(512, 384, 'background').setAlpha(0.25);
 
     this.levelIdText = this.add
-      .text(16, 16, 'Loading level…', {
-        fontFamily: 'Arial',
+      .text(16, 16, `Level: ${context.postId}`, {
+        fontFamily: 'Pixelify Sans',
         fontSize: '22px',
         color: '#ffffff',
       })
@@ -109,7 +110,7 @@ export class Game extends Scene {
 
     this.winText = this.add
       .text(this.scale.width / 2, this.scale.height / 2, 'You Won!', {
-        fontFamily: 'Arial Black',
+        fontFamily: 'Pixelify Sans',
         fontSize: 64,
         color: '#FFD700',
         stroke: '#000000',
@@ -438,7 +439,7 @@ export class Game extends Scene {
         this.scale.height / 2 + 30,
         'You found a Map!',
         {
-          fontFamily: 'Arial',
+          fontFamily: 'Pixelify Sans',
           fontSize: '24px',
           color: '#FFD700',
           stroke: '#000000',
@@ -489,7 +490,7 @@ export class Game extends Scene {
 
     const title = this.add
       .text(panelX + panelW / 2, panelY + 28, 'MAP', {
-        fontFamily: 'Arial Black',
+        fontFamily: 'Pixelify Sans',
         fontSize: '32px',
         color: '#FFD700',
         stroke: '#000000',
@@ -553,7 +554,7 @@ export class Game extends Scene {
         panelY + panelH - 20,
         'Tap anywhere to close',
         {
-          fontFamily: 'Arial',
+          fontFamily: 'Pixelify Sans',
           fontSize: '14px',
           color: '#aaaaaa',
         }
@@ -740,7 +741,7 @@ export class Game extends Scene {
         overlay
           .setTexture('rock')
           .setVisible(true)
-          .setY(baseY - 4)
+          .setY(baseY - 8)
           .setDepth(60);
 
         break;
@@ -748,7 +749,7 @@ export class Game extends Scene {
         overlay
           .setTexture('tree')
           .setVisible(true)
-          .setY(baseY - 4)
+          .setY(baseY - 8)
           .setDepth(60);
 
         break;
@@ -815,7 +816,7 @@ export class Game extends Scene {
         this.scale.height / 2 + 30,
         `You picked up a ${itemName}!`,
         {
-          fontFamily: 'Arial',
+          fontFamily: 'Pixelify Sans',
           fontSize: '24px',
           color: '#FFD700',
           stroke: '#000000',

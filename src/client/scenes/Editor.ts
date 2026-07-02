@@ -7,16 +7,19 @@ import {
   LEVEL_TILE_COUNT,
   TileData,
 } from '../../shared/level';
+import { isLevelBeatable } from '../../shared/levelTest';
 
 const BUTTON_Y_OFFSET = 80;
+const BUTTON_GRAY = 0x4a4a4a;
+const BUTTON_SELECTED = 0x41d900;
 
 export class Editor extends Scene {
   tileSprites: Phaser.GameObjects.Image[] = [];
   tileOverlays: Phaser.GameObjects.Image[] = [];
   // Small dot indicators for the map tile — one per tile slot, mostly hidden
   mapIndicators: Phaser.GameObjects.Image[] = [];
-  startIndicators: Phaser.GameObjects.Text[] = [];
-  winningIndicators: Phaser.GameObjects.Text[] = [];
+  startIndicators: Phaser.GameObjects.Image[] = [];
+  winningIndicators: Phaser.GameObjects.Image[] = [];
   overlayBaseYs: number[] = [];
   tileData = [...DEFAULT_LEVEL.tiles] as TileData[];
   underlyingItems: Map<number, TileData> = new Map();
@@ -28,7 +31,13 @@ export class Editor extends Scene {
 
   selectedType: TileData | 'map' | 'start' | 'winning' = TileData.ROCK;
   levelId: string | null = null;
-  statusText: Phaser.GameObjects.Text | null = null;
+  levelIsNotBeatableReason: Phaser.GameObjects.Text | null = null;
+
+  toolButtonEntries: {
+    graphics: Phaser.GameObjects.Graphics;
+    type: TileData | 'map' | 'start' | 'winning';
+    size: number;
+  }[] = [];
 
   constructor() {
     super('Editor');
@@ -59,7 +68,7 @@ export class Editor extends Scene {
         const overlay = this.add
           .image(x, y, 'tile')
           .setDisplaySize(tileWidth - 10, tileHeight - 10)
-          .setDepth(1)
+          .setDepth(2)
           .setOrigin(0.5)
           .setVisible(false);
 
@@ -70,27 +79,17 @@ export class Editor extends Scene {
           .setVisible(false);
 
         const startIndicator = this.add
-          .text(x, y, 'S', {
-            fontFamily: 'Arial Black',
-            fontSize: 18,
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 4,
-          })
+          .image(x, y, 'knight')
+          .setDisplaySize(tileWidth, tileHeight)
           .setOrigin(0.5)
-          .setDepth(4)
+          .setDepth(1)
           .setVisible(false);
 
         const winningIndicator = this.add
-          .text(x, y, 'W', {
-            fontFamily: 'Arial Black',
-            fontSize: 18,
-            color: '#ffd700',
-            stroke: '#000000',
-            strokeThickness: 4,
-          })
+          .image(x + 8, y - 18, 'win')
+          .setDisplaySize(tileWidth, tileHeight)
           .setOrigin(0.5)
-          .setDepth(5)
+          .setDepth(2)
           .setVisible(false);
 
         this.tileSprites.push(tile);
@@ -102,27 +101,18 @@ export class Editor extends Scene {
       }
     }
 
-    this.statusText = this.add
-      .text(width / 2, tileTop / 2, 'Selected: Rock', {
-        fontFamily: 'Arial',
-        fontSize: '22px',
-        color: '#2f2f2f',
-      })
-      .setOrigin(0.5);
-
     // ── Tool buttons ────────────────────────────────────────────────────────
     const btnSize = 40;
     const btnGap = 50;
-    const buttonRowY1 = height - BUTTON_Y_OFFSET - btnGap - 4;
-    const buttonRowY2 = height - BUTTON_Y_OFFSET;
-    const saveButtonY = height - 20;
+    const buttonRowY1 = height - BUTTON_Y_OFFSET - btnGap + 6;
+    const buttonRowY2 = height - BUTTON_Y_OFFSET + 10;
 
     this.createToolButton(
       20 + btnGap * 0,
       buttonRowY1,
       btnSize,
       'rock',
-      0x4a4a4a,
+      TileData.ROCK,
       () => {
         this.selectedType = TileData.ROCK;
         this.updateStatus();
@@ -133,7 +123,7 @@ export class Editor extends Scene {
       buttonRowY1,
       btnSize,
       'tree',
-      0x4a4a4a,
+      TileData.TREE,
       () => {
         this.selectedType = TileData.TREE;
         this.updateStatus();
@@ -144,7 +134,7 @@ export class Editor extends Scene {
       buttonRowY1,
       btnSize,
       'pickaxe',
-      0x4a4a4a,
+      TileData.PICKAXE,
       () => {
         this.selectedType = TileData.PICKAXE;
         this.updateStatus();
@@ -155,7 +145,7 @@ export class Editor extends Scene {
       buttonRowY1,
       btnSize,
       'shovel',
-      0x4a4a4a,
+      TileData.SHOVEL,
       () => {
         this.selectedType = TileData.SHOVEL;
         this.updateStatus();
@@ -167,7 +157,7 @@ export class Editor extends Scene {
       buttonRowY2,
       btnSize,
       'tile',
-      0x4a4a4a,
+      TileData.BASE_TILE,
       () => {
         this.selectedType = TileData.BASE_TILE;
         this.updateStatus();
@@ -178,7 +168,7 @@ export class Editor extends Scene {
       buttonRowY2,
       btnSize,
       'map',
-      0x8b6914,
+      'map',
       () => {
         this.selectedType = 'map';
         this.updateStatus();
@@ -189,7 +179,7 @@ export class Editor extends Scene {
       buttonRowY2,
       btnSize,
       'knight',
-      0x3a5a31,
+      'start',
       () => {
         this.selectedType = 'start';
         this.updateStatus();
@@ -199,8 +189,8 @@ export class Editor extends Scene {
       20 + btnGap * 3,
       buttonRowY2,
       btnSize,
-      'logo',
-      0x8b6914,
+      'win',
+      'winning',
       () => {
         this.selectedType = 'winning';
         this.updateStatus();
@@ -208,14 +198,48 @@ export class Editor extends Scene {
     );
 
     this.createActionButton(
-      width / 2 - 100,
-      saveButtonY,
-      200,
-      44,
+      20 + btnGap * 4,
+      buttonRowY2,
+      100,
+      btnSize,
       'Save',
       0x3a5a31,
       () => {
-        this.openPublishModal();
+        const tilesToSave = [...this.tileData];
+        if (
+          this.startTileIndex !== null &&
+          tilesToSave[this.startTileIndex] !== TileData.BASE_TILE
+        ) {
+          tilesToSave[this.startTileIndex] = TileData.BASE_TILE;
+        }
+        if (
+          this.winningTileIndex !== null &&
+          tilesToSave[this.winningTileIndex] !== TileData.BASE_TILE
+        ) {
+          tilesToSave[this.winningTileIndex] = TileData.BASE_TILE;
+        }
+
+        const { beatable, reason } = isLevelBeatable({
+          tiles: tilesToSave,
+          startTileIndex: this.startTileIndex,
+          winningTileIndex: this.winningTileIndex,
+          cols: 8,
+          rows: 8,
+        });
+
+        if (beatable) {
+          this.openPublishModal();
+        } else {
+          if (!this.levelIsNotBeatableReason) {
+            this.levelIsNotBeatableReason = this.add.text(10, 10, `${reason}`, {
+              fontFamily: 'Pixelify Sans',
+              fontSize: '16px',
+              color: '#2f2f2f',
+            });
+          } else {
+            this.levelIsNotBeatableReason.setText(`${reason}`);
+          }
+        }
       }
     );
 
@@ -229,18 +253,17 @@ export class Editor extends Scene {
     y: number,
     size: number,
     img: string,
-    fillColor: number,
+    buttonType: TileData | 'map' | 'start' | 'winning',
     callback: () => void
   ): Phaser.GameObjects.Container {
     const radius = 8;
     const graphics = this.add.graphics();
-    graphics.fillStyle(fillColor, 1);
-    graphics.fillRoundedRect(0, 0, size, size, radius);
-    graphics.lineStyle(2, 0x000000, 1);
-    graphics.strokeRoundedRect(0, 0, size, size, radius);
+    this.paintToolButton(graphics, size, radius, buttonType);
 
     const icon = this.add.image(size / 2, size / 2, img).setOrigin(0.5);
-    const iconScale = (size * 0.6) / Math.max(icon.width, icon.height);
+    const iconScale =
+      (size * (img === 'knight' ? 1.2 : 0.6)) /
+      Math.max(icon.width, icon.height);
     icon.setScale(iconScale);
 
     const container = this.add.container(x, y, [graphics, icon]);
@@ -252,7 +275,36 @@ export class Editor extends Scene {
     });
     container.on('pointerdown', callback);
     container.setDepth(20);
+
+    this.toolButtonEntries.push({ graphics, type: buttonType, size });
+
     return container;
+  }
+
+  // Redraws a single button's background: gray by default, green when
+  // its type is the currently selected tool.
+  private paintToolButton(
+    graphics: Phaser.GameObjects.Graphics,
+    size: number,
+    radius: number,
+    buttonType: TileData | 'map' | 'start' | 'winning'
+  ) {
+    const isSelected = this.selectedType === buttonType;
+    const fillColor = isSelected ? BUTTON_SELECTED : BUTTON_GRAY;
+
+    graphics.clear();
+    graphics.fillStyle(fillColor, 1);
+    graphics.fillRoundedRect(0, 0, size, size, radius);
+    graphics.lineStyle(2, 0x000000, 1);
+    graphics.strokeRoundedRect(0, 0, size, size, radius);
+  }
+
+  // Call whenever selectedType changes to keep button backgrounds in sync.
+  private refreshToolButtonColors() {
+    const radius = 8;
+    for (const entry of this.toolButtonEntries) {
+      this.paintToolButton(entry.graphics, entry.size, radius, entry.type);
+    }
   }
 
   private createActionButton(
@@ -273,7 +325,7 @@ export class Editor extends Scene {
 
     const text = this.add
       .text(width / 2, height / 2, label, {
-        fontFamily: 'Arial Black',
+        fontFamily: 'Pixelify Sans',
         fontSize: 18,
         color: '#ffffff',
       })
@@ -294,19 +346,7 @@ export class Editor extends Scene {
   // ─── Status ────────────────────────────────────────────────────────────────
 
   private updateStatus() {
-    if (!this.statusText) return;
-    const labels: Record<string, string> = {
-      [TileData.ROCK]: 'Rock',
-      [TileData.TREE]: 'Tree',
-      [TileData.PICKAXE]: 'Pickaxe',
-      [TileData.SHOVEL]: 'Shovel',
-      [TileData.BASE_TILE]: 'Base tile',
-      map: 'Map',
-      start: 'Start',
-      winning: 'Winning square',
-    };
-    const key = this.selectedType === 'map' ? 'map' : String(this.selectedType);
-    this.statusText.setText(`Selected: ${labels[key] ?? '?'}`);
+    this.refreshToolButtonColors();
   }
 
   // ─── Tile placement ────────────────────────────────────────────────────────
@@ -473,7 +513,6 @@ export class Editor extends Scene {
       if (result?.levelId) {
         this.levelId = result.levelId;
         localStorage.setItem('lastLevelId', this.levelId!);
-        this.statusText?.setText(`Published as "${title}"`);
       }
 
       return { success: true };
@@ -500,7 +539,7 @@ export class Editor extends Scene {
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: '1000',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Pixelify Sans, sans-serif',
     });
 
     const panel = document.createElement('div');

@@ -27,6 +27,7 @@ export class Preloader extends Scene {
     //Decor
     this.load.image('rock', 'decor/Rock2_1.png');
     this.load.image('tree', 'decor/Palm_tree2_1.png');
+    this.load.image('win', 'decor/win.png');
 
     //Tools
     this.load.image('pickaxe', 'tools/Icon31_01.png');

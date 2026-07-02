@@ -21,7 +21,7 @@ export class GameOver extends Scene {
 
     this.gameover_text = this.add
       .text(0, 0, 'Game Over', {
-        fontFamily: 'Arial Black',
+        fontFamily: 'Pixelify Sans',
         fontSize: '64px',
         color: '#ffffff',
         stroke: '#000000',
