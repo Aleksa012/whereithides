@@ -3,6 +3,7 @@ import { context, requestExpandedMode } from '@devvit/web/client';
 const actionButton = document.getElementById(
   'start-button'
 ) as HTMLButtonElement;
+const lbButton = document.getElementById('lb-button') as HTMLButtonElement;
 const titleElement = document.getElementById('title') as HTMLHeadingElement;
 const descriptionElement = document.getElementById(
   'description'
@@ -16,13 +17,15 @@ const levelId = context.postId;
 
 function init() {
   titleElement.textContent = 'Where it hides';
-  descriptionElement.textContent = hasPost
-    ? 'How to play:'
-    : `Tap create to make a new level.`;
+  descriptionElement.textContent = 'How to play:';
 
   actionButton.textContent = hasPost ? 'Play' : 'Create Level';
   actionButton.addEventListener('click', (event) => {
     requestExpandedMode(event, 'game');
+  });
+
+  lbButton.addEventListener('click', (event) => {
+    requestExpandedMode(event, 'leaderboard');
   });
 
   if (levelId) {

@@ -48,9 +48,9 @@ export class Editor extends Scene {
 
     const { width, height } = this.scale;
     const tileWidth = width / LEVEL_COLS;
-    const tileHeight = (height - 180) / LEVEL_ROWS;
+    const tileHeight = tileWidth;
 
-    const tileTop = 40;
+    const tileTop = 80;
 
     for (let row = 0; row < LEVEL_ROWS; row++) {
       for (let col = 0; col < LEVEL_COLS; col++) {
@@ -86,7 +86,7 @@ export class Editor extends Scene {
           .setVisible(false);
 
         const winningIndicator = this.add
-          .image(x + 8, y - 18, 'win')
+          .image(x + 8, y - 12, 'win')
           .setDisplaySize(tileWidth, tileHeight)
           .setOrigin(0.5)
           .setDepth(2)
@@ -438,13 +438,13 @@ export class Editor extends Scene {
           overlay
             ?.setTexture('rock')
             .setVisible(true)
-            .setY(baseY - 18);
+            .setY(baseY - 12);
           break;
         case TileData.TREE:
           overlay
             ?.setTexture('tree')
             .setVisible(true)
-            .setY(baseY - 18);
+            .setY(baseY - 12);
           break;
         case TileData.PICKAXE:
           overlay?.setTexture('pickaxe').setVisible(true).setY(baseY);

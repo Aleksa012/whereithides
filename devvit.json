@@ -15,6 +15,9 @@
       },
       "game": {
         "entry": "game.html"
+      },
+      "leaderboard": {
+        "entry": "leaderboard.html"
       }
     }
   },

@@ -1,8 +1,11 @@
 import { Scene } from 'phaser';
 
 export class Boot extends Scene {
-  constructor() {
+  entry: 'game' | 'leaderboard' = 'game';
+
+  constructor(entry: 'game' | 'leaderboard') {
     super('Boot');
+    this.entry = entry;
   }
 
   preload() {
@@ -30,7 +33,9 @@ export class Boot extends Scene {
           await new Promise((r) => setTimeout(r, 500));
         }
       } catch (e) {}
-      this.scene.start('Preloader');
+      this.scene.start(
+        this.entry === 'leaderboard' ? 'Leaderboard' : 'Preloader'
+      );
     };
 
     waitForFont();

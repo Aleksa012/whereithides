@@ -47,6 +47,9 @@ export class Game extends Scene {
   mapOverlay: Phaser.GameObjects.Container | null = null;
   mapOverlayClosed = false;
 
+  moveCount = 0;
+  scoreSubmitted = false;
+
   constructor() {
     super('Game');
   }
@@ -86,6 +89,8 @@ export class Game extends Scene {
     this.mapOverlay = null;
     this.mapOverlayClosed = false;
     this.inventory = { pickaxe: false, shovel: false, map: false };
+    this.moveCount = 0;
+    this.scoreSubmitted = false;
   }
 
   async create() {
@@ -587,6 +592,8 @@ export class Game extends Scene {
 
     const tileType = this.tiles[clickedIndex];
 
+    this.moveCount++; // <-- add this line
+
     // ── Rock ──────────────────────────────────────────────────────────────
     if (tileType === TileData.ROCK) {
       if (!this.inventory.pickaxe) {
@@ -619,13 +626,20 @@ export class Game extends Scene {
       // Already standing here + has shovel = dig
       if (currentIndex === clickedIndex && this.inventory.shovel) {
         this.digTile(clickedIndex);
-        if (clickedIndex === this.winningIndex) this.hasWon = true;
+        if (clickedIndex === this.winningIndex) {
+          this.hasWon = true;
+          this.submitScore();
+        }
+
         return;
       }
 
       // Otherwise just walk there (dig requires a second click once standing)
       this.walkTo(clickedIndex, (arrivedAt) => {
-        if (arrivedAt === this.winningIndex) this.hasWon = true;
+        if (arrivedAt === this.winningIndex) {
+          this.hasWon = true;
+          this.submitScore();
+        }
       });
       return;
     }
@@ -633,7 +647,10 @@ export class Game extends Scene {
     // ── Walkable (dirt, etc.) ─────────────────────────────────────────────
     if (this.isWalkable(clickedIndex)) {
       this.walkTo(clickedIndex, (arrivedAt) => {
-        if (arrivedAt === this.winningIndex) this.hasWon = true;
+        if (arrivedAt === this.winningIndex) {
+          this.hasWon = true;
+          this.submitScore();
+        }
       });
       return;
     }
@@ -785,6 +802,17 @@ export class Game extends Scene {
           .setDisplaySize(baseTileWidth - 10, baseTileHeight - 10);
         break;
     }
+  }
+
+  private submitScore() {
+    if (this.scoreSubmitted) return;
+    this.scoreSubmitted = true;
+
+    fetch('/api/level/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moves: this.moveCount }),
+    }).catch((err) => console.error('Failed to submit score:', err));
   }
 
   // ─── Win State ─────────────────────────────────────────────────────────────

@@ -23,6 +23,19 @@
   bottom: 16px;
   right: 16px;
   transform: scaleX(-1);
+  animation: move-knight 1s linear infinite;
+}
+
+@keyframes move-knight {
+  0% {
+    transform: scaleX(-1) translateY(0px);
+  }
+  50% {
+    transform: scaleX(-1) translateY(-10px);
+  }
+  100% {
+    transform: scaleX(-1) translateY(0px);
+  }
 }
 
 .app {
@@ -60,28 +73,27 @@
   font-size: 3em;
   font-weight: bold;
   text-align: center;
-  color: #000000;
+  color: #fab82c;
   text-shadow:
-    -1px -1px 0 #ddff00bf,
-    1px -1px 0 #ddff00bf,
-    -1px 1px 0 #ddff00bf,
-    1px 1px 0 #ddff00bf;
+    -1px -1px 0 #1a1a1a,
+    1px -1px 0 #1a1a1a,
+    -1px 1px 0 #1a1a1a,
+    1px 1px 0 #1a1a1a;
 }
 
 .description {
-  font-size: 1.5em;
-  text-align: center;
-  color: #ddff00bf;
+  font-size: 1.2em;
+  color: #f4ead4;
   font-weight: bold;
   text-shadow:
-    -1px -1px 0 #000000,
-    1px -1px 0 #000000,
-    -1px 1px 0 #000000,
-    1px 1px 0 #000000;
+    -1px -1px 0 #1a1a1a,
+    1px -1px 0 #1a1a1a,
+    -1px 1px 0 #1a1a1a,
+    1px 1px 0 #1a1a1a;
 }
 
 .level-id {
-  color: #40101b;
+  color: #2b1712;
   font-weight: bold;
 }
 
@@ -92,14 +104,14 @@
 }
 
 .start-button {
-  background-color: #41d900;
+  background-color: #ba1e00;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
   border: none;
-  padding: 12px 48px;
+  padding: 12px 24px;
   height: 28px;
   font-size: 1.1em;
   border-radius: 8px;

@@ -1,10 +1,6 @@
 import { Boot } from './scenes/Boot';
-import { Editor } from './scenes/Editor';
-import { GameOver } from './scenes/GameOver';
-import { Game as MainGame } from './scenes/Game';
 import * as Phaser from 'phaser';
 import { AUTO, Game } from 'phaser';
-import { Preloader } from './scenes/Preloader';
 import { Leaderboard } from './scenes/Leaderboard';
 
 //  Find out more information about the Game Config at:
@@ -21,13 +17,13 @@ const config: Phaser.Types.Core.GameConfig = {
     width: 1024,
     height: 768,
   },
-  scene: [Boot, Preloader, Editor, MainGame, GameOver, Leaderboard],
+  scene: [new Boot('leaderboard'), Leaderboard],
 };
 
-const StartGame = (parent: string) => {
+const StartLeaderboards = (parent: string) => {
   return new Game({ ...config, parent });
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  StartGame('game-container');
+  StartLeaderboards('leaderboard-container');
 });

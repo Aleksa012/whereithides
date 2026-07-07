@@ -1,8 +1,17 @@
 import { Hono } from 'hono';
-import { context } from '@devvit/web/server';
+import { context, reddit, redis } from '@devvit/web/server';
 import { createUserPost } from '../core/post';
 import { TileData, validateLevelData } from '../../shared/level';
 import { JsonObject } from '@devvit/web/shared';
+import {
+  getTopLeaderboard,
+  getUserRankAndScore,
+  recordCompletion,
+} from '../core/leaderboardService';
+import {
+  CompleteLevelResponse,
+  LeaderboardResponse,
+} from '../../shared/leaderboard';
 
 type ErrorResponse = {
   status: 'error';
@@ -118,4 +127,70 @@ api.post('/level/publish', async (c) => {
       500
     );
   }
+});
+
+api.post('/level/complete', async (c) => {
+  const { moves } = await c.req.json<{ moves: number }>();
+
+  if (typeof moves !== 'number' || !Number.isFinite(moves) || moves <= 0) {
+    return c.json({ status: 'error', message: 'Invalid moves count.' }, 400);
+  }
+
+  const user = await reddit.getCurrentUser();
+  if (!user) {
+    return c.json({ status: 'error', message: 'Must be logged in.' }, 401);
+  }
+
+  const { subredditId, postId } = context;
+  if (!subredditId || !postId) {
+    return c.json(
+      { status: 'error', message: 'Missing subreddit/post context.' },
+      400
+    );
+  }
+
+  const result = await recordCompletion(redis, {
+    subredditId,
+    postId,
+    userId: user.id,
+    username: user.username,
+    moves,
+  });
+
+  return c.json<CompleteLevelResponse>({
+    type: 'complete-level',
+    ...result,
+  });
+});
+
+api.get('/leaderboard', async (c) => {
+  const { subredditId } = context;
+  if (!subredditId) {
+    return c.json(
+      { status: 'error', message: 'Missing subreddit context.' },
+      400
+    );
+  }
+
+  const top = await getTopLeaderboard(redis, subredditId, 10);
+
+  const user = await reddit.getCurrentUser();
+  let me: LeaderboardResponse['me'] = null;
+
+  if (user) {
+    const mine = await getUserRankAndScore(redis, subredditId, user.id);
+    me = {
+      userId: user.id,
+      username: user.username,
+      score: mine?.score ?? 0,
+      rank: mine?.rank ?? null,
+    };
+  }
+
+  return c.json<LeaderboardResponse>({
+    type: 'leaderboard',
+    subredditId,
+    top,
+    me,
+  });
 });
