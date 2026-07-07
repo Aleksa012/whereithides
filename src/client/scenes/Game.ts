@@ -7,6 +7,7 @@ import {
   TileData,
 } from '../../shared/level';
 import { context } from '@devvit/web/client';
+import { CompleteLevelResponse } from '../../shared/leaderboard';
 
 type TilePosition = {
   x: number;
@@ -24,13 +25,13 @@ export class Game extends Scene {
   tiles: TileData[] = [...DEFAULT_LEVEL.tiles] as TileData[];
   underlyingItems: Map<number, TileData> = new Map();
 
-  // Independent layer — which single tile index hides the map (null if none)
   mapTileIndex: number | null = null;
   startTileIndex: number | null = null;
 
   isMoving = false;
   hasWon = false;
   winText: Phaser.GameObjects.Text | null = null;
+  winSubtext: Phaser.GameObjects.Text | null = null;
   winningIndex: number | null = null;
   levelId: string | null = null;
   hasPlacedCharacter = false;
@@ -43,9 +44,9 @@ export class Game extends Scene {
   notificationIcon: Phaser.GameObjects.Image | null = null;
   notificationTimer: Phaser.Time.TimerEvent | null = null;
 
-  // Created once when map is found, destroyed on close, never reopened
   mapOverlay: Phaser.GameObjects.Container | null = null;
   mapOverlayClosed = false;
+  isOverlayOpen = false;
 
   moveCount = 0;
   scoreSubmitted = false;
@@ -82,28 +83,26 @@ export class Game extends Scene {
     this.startTileIndex = data?.startTileIndex ?? null;
     this.winningIndex = data?.winningTileIndex ?? null;
 
-    // Reset session state
     this.isMoving = false;
     this.hasWon = false;
     this.hasPlacedCharacter = false;
     this.mapOverlay = null;
     this.mapOverlayClosed = false;
+    this.isOverlayOpen = false;
     this.inventory = { pickaxe: false, shovel: false, map: false };
     this.moveCount = 0;
     this.scoreSubmitted = false;
+    this.winSubtext = null;
   }
 
   async create() {
     this.cameras.main.setBackgroundColor(0xe0c492);
-    this.camera = this.cameras.main;
-
-    this.background = this.add.image(512, 384, 'background').setAlpha(0.25);
 
     this.levelIdText = this.add
       .text(16, 16, `Level: ${context.postId}`, {
         fontFamily: 'Pixelify Sans',
         fontSize: '22px',
-        color: '#ffffff',
+        color: '#1a1a1a',
       })
       .setDepth(50)
       .setScrollFactor(0);
@@ -114,7 +113,7 @@ export class Game extends Scene {
       .setDisplaySize(this.scale.width / 8 - 4, this.scale.width / 8 - 4);
 
     this.winText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2, 'You Won!', {
+      .text(this.scale.width / 2, this.scale.height / 2, `You Won!`, {
         fontFamily: 'Pixelify Sans',
         fontSize: 64,
         color: '#FFD700',
@@ -125,11 +124,23 @@ export class Game extends Scene {
       .setDepth(100)
       .setVisible(false);
 
-    // if (this.levelId) {
-    //   this.levelIdText?.setText(`Level: ${this.levelId}`);
-    // } else {
-    //   await this.loadSavedLevel();
-    // }
+    this.winSubtext = this.add
+      .text(
+        this.scale.width / 2,
+        this.scale.height / 2 + 80,
+        `Your score of ===\nwill be submited\nto the leaderboard!`,
+        {
+          fontFamily: 'Arial',
+          fontSize: 16,
+          color: '#FFD700',
+          stroke: '#000000',
+          strokeThickness: 4,
+          align: 'center',
+        }
+      )
+      .setOrigin(0.5)
+      .setDepth(100)
+      .setVisible(false);
 
     this.updateLayout(this.scale.width, this.scale.height);
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
@@ -138,8 +149,6 @@ export class Game extends Scene {
 
     this.events.on('update', () => this.updateWinState());
   }
-
-  // ─── Layout ────────────────────────────────────────────────────────────────
 
   updateLayout(width: number, height: number) {
     this.cameras.resize(width, height);
@@ -160,8 +169,6 @@ export class Game extends Scene {
 
     this.renderLevel(width, height);
   }
-
-  // ─── Tile Helpers ──────────────────────────────────────────────────────────
 
   private isWalkable(index: number): boolean {
     const t = this.tiles[index];
@@ -210,8 +217,6 @@ export class Game extends Scene {
       this.renderOverlayForTile(index, this.tileOverlays[index]!);
     });
   }
-
-  // ─── Pathfinding ───────────────────────────────────────────────────────────
 
   private dijkstra(startIndex: number, targetIndex: number): number[] {
     if (!this.isWalkable(startIndex) || !this.isWalkable(targetIndex))
@@ -295,8 +300,6 @@ export class Game extends Scene {
     return candidates[0]!;
   }
 
-  // ─── Character Position ────────────────────────────────────────────────────
-
   private getCurrentTileIndex(): number {
     if (!this.character) return 0;
     let closest = 0;
@@ -314,8 +317,6 @@ export class Game extends Scene {
     }
     return closest;
   }
-
-  // ─── Movement ─────────────────────────────────────────────────────────────
 
   private moveAlongPath(
     path: number[],
@@ -336,7 +337,7 @@ export class Game extends Scene {
     this.tweens.add({
       targets: this.character,
       x: nextPos.x,
-      y: nextPos.y,
+      y: nextPos.y - 12,
       duration: 300,
       ease: 'Linear',
       onStart: () => this.character?.play('run'),
@@ -378,8 +379,6 @@ export class Game extends Scene {
     this.moveAlongPath(path, onArrive);
   }
 
-  // ─── Actions ───────────────────────────────────────────────────────────────
-
   private tryCollectItem(tileIndex: number): boolean {
     const t = this.tiles[tileIndex];
 
@@ -408,10 +407,6 @@ export class Game extends Scene {
     this.clearOrRestoreTile(rockIndex);
   }
 
-  /**
-   * Dig a BASE_TILE — always converts to DIRT.
-   * Independently, if this tile index is the map tile, collect the map.
-   */
   private digTile(tileIndex: number) {
     if (!this.inventory.shovel || this.tiles[tileIndex] !== TileData.BASE_TILE)
       return;
@@ -419,14 +414,11 @@ export class Game extends Scene {
     this.tiles[tileIndex] = TileData.DIRT;
     this.renderOverlayForTile(tileIndex, this.tileOverlays[tileIndex]!);
 
-    // Check the independent map layer — digging this tile reveals the map
     if (tileIndex === this.mapTileIndex && !this.inventory.map) {
-      this.mapTileIndex = null; // consumed
+      this.mapTileIndex = null;
       this.collectMap();
     }
   }
-
-  // ─── Map Collection & Overlay ──────────────────────────────────────────────
 
   private collectMap() {
     this.inventory.map = true;
@@ -470,7 +462,6 @@ export class Game extends Scene {
   }
 
   private showMapOverlay() {
-    // Guard: never reopen after it has been closed once
     if (this.mapOverlayClosed) return;
 
     const { width, height } = this.scale;
@@ -479,8 +470,12 @@ export class Game extends Scene {
       .rectangle(0, 0, width, height, 0x000000, 0.75)
       .setOrigin(0)
       .setDepth(200)
-      .setInteractive()
+      .setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.closeMapOverlay());
+
+    backdrop.on('pointerdown', (event: Phaser.Input.Pointer) => {
+      event.event.stopPropagation();
+    });
 
     const panelW = Math.min(width * 0.85, 480);
     const panelH = panelW + 80;
@@ -488,17 +483,17 @@ export class Game extends Scene {
     const panelY = (height - panelH) / 2;
 
     const panel = this.add
-      .rectangle(panelX, panelY, panelW, panelH, 0x1a1a2e)
+      .rectangle(panelX, panelY, panelW, panelH, 0x1a1a1a)
       .setOrigin(0)
       .setDepth(201)
-      .setStrokeStyle(3, 0xffd700);
+      .setStrokeStyle(3, 0xfab82c);
 
     const title = this.add
       .text(panelX + panelW / 2, panelY + 28, 'MAP', {
         fontFamily: 'Pixelify Sans',
         fontSize: '32px',
-        color: '#FFD700',
-        stroke: '#000000',
+        color: '#fab82c',
+        stroke: '#1a1a1a',
         strokeThickness: 4,
       })
       .setOrigin(0.5)
@@ -518,7 +513,6 @@ export class Game extends Scene {
         const cx = gridX + col * cellSize;
         const cy = gridY + row * cellSize;
 
-        // Base cell
         const cellColor =
           this.tiles[index] === TileData.ROCK
             ? 0x555555
@@ -526,7 +520,7 @@ export class Game extends Scene {
               ? 0x2d5a1b
               : this.tiles[index] === TileData.DIRT
                 ? 0x6b4226
-                : 0x5a7a4a;
+                : 0xfab82c;
 
         gridItems.push(
           this.add
@@ -535,7 +529,6 @@ export class Game extends Scene {
             .setDepth(202)
         );
 
-        // X on the winning tile
         if (index === this.winningIndex) {
           gridItems.push(
             this.add
@@ -561,7 +554,7 @@ export class Game extends Scene {
         {
           fontFamily: 'Pixelify Sans',
           fontSize: '14px',
-          color: '#aaaaaa',
+          color: '#fab82c',
         }
       )
       .setOrigin(0.5)
@@ -575,26 +568,24 @@ export class Game extends Scene {
       closeHint,
     ]);
     this.mapOverlay.setDepth(200);
+    this.isOverlayOpen = true;
   }
 
   private closeMapOverlay() {
     if (!this.mapOverlay) return;
     this.mapOverlay.destroy(true);
     this.mapOverlay = null;
-    this.mapOverlayClosed = true; // never reopen
+    this.isOverlayOpen = false;
+    this.mapOverlayClosed = true;
   }
-
-  // ─── Click Handling ────────────────────────────────────────────────────────
 
   private moveCharacterToTile(clickedIndex: number) {
     if (!this.character || this.isMoving || this.hasWon) return;
-    if (this.mapOverlay) return; // backdrop handles close while overlay is open
+    if (this.isOverlayOpen) return;
 
     const tileType = this.tiles[clickedIndex];
 
-    this.moveCount++; // <-- add this line
-
-    // ── Rock ──────────────────────────────────────────────────────────────
+    this.moveCount++;
     if (tileType === TileData.ROCK) {
       if (!this.inventory.pickaxe) {
         this.shakeCharacter();
@@ -619,11 +610,9 @@ export class Game extends Scene {
       return;
     }
 
-    // ── Base tile ─────────────────────────────────────────────────────────
     if (tileType === TileData.BASE_TILE) {
       const currentIndex = this.getCurrentTileIndex();
 
-      // Already standing here + has shovel = dig
       if (currentIndex === clickedIndex && this.inventory.shovel) {
         this.digTile(clickedIndex);
         if (clickedIndex === this.winningIndex) {
@@ -633,8 +622,6 @@ export class Game extends Scene {
 
         return;
       }
-
-      // Otherwise just walk there (dig requires a second click once standing)
       this.walkTo(clickedIndex, (arrivedAt) => {
         if (arrivedAt === this.winningIndex) {
           this.hasWon = true;
@@ -644,7 +631,6 @@ export class Game extends Scene {
       return;
     }
 
-    // ── Walkable (dirt, etc.) ─────────────────────────────────────────────
     if (this.isWalkable(clickedIndex)) {
       this.walkTo(clickedIndex, (arrivedAt) => {
         if (arrivedAt === this.winningIndex) {
@@ -657,9 +643,6 @@ export class Game extends Scene {
 
     this.shakeCharacter();
   }
-  // ─── Character Placement ───────────────────────────────────────────────────
-
-  // ─── Rendering ─────────────────────────────────────────────────────────────
 
   renderLevel(width: number, height: number) {
     this.blocks.forEach((b) => b.destroy());
@@ -737,7 +720,7 @@ export class Game extends Scene {
 
     const position = this.tilePositions[tileIndex];
     if (position) {
-      this.character.setPosition(position.x, position.y);
+      this.character.setPosition(position.x, position.y - 12);
       this.hasPlacedCharacter = true;
       this.tryCollectItem(tileIndex);
     }
@@ -804,21 +787,35 @@ export class Game extends Scene {
     }
   }
 
-  private submitScore() {
+  private async submitScore() {
     if (this.scoreSubmitted) return;
     this.scoreSubmitted = true;
 
-    fetch('/api/level/complete', {
+    const submitResponse = await fetch('/api/level/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ moves: this.moveCount }),
-    }).catch((err) => console.error('Failed to submit score:', err));
+    })
+      .then((res) => res.json())
+      .catch((err) => {
+        console.error('Failed to submit score:', err);
+        return null;
+      });
+
+    if (submitResponse && 'type' in submitResponse) {
+      const response = submitResponse as CompleteLevelResponse;
+      if (this.winSubtext && response.awarded)
+        this.winSubtext
+          .setVisible(true)
+          .setPosition(this.scale.width / 2, this.scale.height / 2 + 80)
+          .setText(
+            `${this.winSubtext.text.replace('===', response.pointsEarned.toFixed(0))}`
+          );
+    }
   }
 
-  // ─── Win State ─────────────────────────────────────────────────────────────
-
   updateWinState() {
-    if (!this.winText) return;
+    if (!this.winText || !this.winSubtext) return;
     if (this.hasWon) {
       this.winText
         .setVisible(true)
@@ -827,8 +824,6 @@ export class Game extends Scene {
       this.winText.setVisible(false);
     }
   }
-
-  // ─── UI Helpers ────────────────────────────────────────────────────────────
 
   private showNotification(itemType: TileData) {
     this.notificationTimer?.remove();
@@ -846,8 +841,8 @@ export class Game extends Scene {
         {
           fontFamily: 'Pixelify Sans',
           fontSize: '24px',
-          color: '#FFD700',
-          stroke: '#000000',
+          color: '#fab82c',
+          stroke: '#1a1a1a',
           strokeThickness: 2,
         }
       )
@@ -870,6 +865,7 @@ export class Game extends Scene {
 
   private shakeCharacter() {
     if (!this.character) return;
+    this.isMoving = true;
     const originalY = this.character.y;
     this.tweens.add({
       targets: this.character,
@@ -878,7 +874,10 @@ export class Game extends Scene {
       ease: 'Power1.easeInOut',
       yoyo: true,
       repeat: 1,
-      onComplete: () => this.character?.setY(originalY),
+      onComplete: () => {
+        this.character?.setY(originalY);
+        this.isMoving = false;
+      },
     });
   }
 }

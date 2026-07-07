@@ -16,7 +16,7 @@ const hasPost = !!context.postData;
 const levelId = context.postId;
 
 function init() {
-  titleElement.textContent = 'Where it hides';
+  titleElement.textContent = 'Where It Hides';
   descriptionElement.textContent = 'How to play:';
 
   actionButton.textContent = hasPost ? 'Play' : 'Create Level';

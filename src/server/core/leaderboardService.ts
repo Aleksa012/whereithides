@@ -1,20 +1,16 @@
 import { RedisClient } from '@devvit/web/server';
 import { calculatePoints, LeaderboardEntry } from '../../shared/leaderboard';
 
-// Derives the Redis client's type from context so we don't have to guess
-// the exact import path for the RedisClient type.
-
 const leaderboardKey = (subredditId: string) => `leaderboard:${subredditId}`;
 const completedSetKey = (postId: string) => `completed:${postId}`;
 const usernamesKey = (subredditId: string) => `usernames:${subredditId}`;
 
-/**
- * Records a level completion for a user.
- *
- * Points are only ever awarded the FIRST time a given user completes a
- * given post — replaying an already-completed post never adds more points,
- * it just reports the user's existing total.
- */
+export type ScoreSubmit = {
+  awarded: boolean;
+  pointsEarned: number;
+  totalScore: number;
+};
+
 export async function recordCompletion(
   redis: RedisClient,
   params: {
@@ -24,7 +20,7 @@ export async function recordCompletion(
     username: string;
     moves: number;
   }
-): Promise<{ awarded: boolean; pointsEarned: number; totalScore: number }> {
+): Promise<ScoreSubmit> {
   const { subredditId, postId, userId, username, moves } = params;
 
   const alreadyCompleted = await redis.zRank(completedSetKey(postId), userId);
@@ -38,9 +34,6 @@ export async function recordCompletion(
 
   const pointsEarned = calculatePoints(moves);
 
-  // Order matters: mark completed first so a crash/retry between these two
-  // calls can't double-award points (worst case it under-awards, which is
-  // the safe failure direction here).
   await redis.zAdd(completedSetKey(postId), {
     member: userId,
     score: pointsEarned,
@@ -55,9 +48,6 @@ export async function recordCompletion(
   return { awarded: true, pointsEarned, totalScore };
 }
 
-/**
- * Returns the top N users on a subreddit's leaderboard, highest score first.
- */
 export async function getTopLeaderboard(
   redis: RedisClient,
   subredditId: string,
@@ -80,10 +70,6 @@ export async function getTopLeaderboard(
   }));
 }
 
-/**
- * Returns a single user's score + 1-based rank on a subreddit leaderboard,
- * or null if they don't have a score yet.
- */
 export async function getUserRankAndScore(
   redis: RedisClient,
   subredditId: string,
@@ -92,8 +78,6 @@ export async function getUserRankAndScore(
   const score = await redis.zScore(leaderboardKey(subredditId), userId);
   if (score === undefined || score === null) return null;
 
-  // zRank is ascending (0 = lowest score). Convert to a "1st place = highest
-  // score" rank: rank = total - ascendingRank.
   const ascendingRank = await redis.zRank(leaderboardKey(subredditId), userId);
   const total = await redis.zCard(leaderboardKey(subredditId));
 

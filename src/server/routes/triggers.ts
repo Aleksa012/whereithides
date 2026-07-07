@@ -18,7 +18,6 @@ triggers.post('/on-app-install', async (c) => {
       200
     );
   } catch (error) {
-    console.error(`Error creating post: ${error}`);
     return c.json<TriggerResponse>(
       {
         status: 'error',

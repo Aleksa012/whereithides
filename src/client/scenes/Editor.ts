@@ -10,13 +10,12 @@ import {
 import { isLevelBeatable } from '../../shared/levelTest';
 
 const BUTTON_Y_OFFSET = 80;
-const BUTTON_GRAY = 0x4a4a4a;
-const BUTTON_SELECTED = 0x41d900;
+const BUTTON_SELECTED = 0x7cfc00;
+const BUTTON_STANDARD = 0xf4ead4;
 
 export class Editor extends Scene {
   tileSprites: Phaser.GameObjects.Image[] = [];
   tileOverlays: Phaser.GameObjects.Image[] = [];
-  // Small dot indicators for the map tile — one per tile slot, mostly hidden
   mapIndicators: Phaser.GameObjects.Image[] = [];
   startIndicators: Phaser.GameObjects.Image[] = [];
   winningIndicators: Phaser.GameObjects.Image[] = [];
@@ -24,7 +23,6 @@ export class Editor extends Scene {
   tileData = [...DEFAULT_LEVEL.tiles] as TileData[];
   underlyingItems: Map<number, TileData> = new Map();
 
-  // Only one tile can hold the hidden map — null means none placed yet
   mapTileIndex: number | null = null;
   startTileIndex: number | null = null;
   winningTileIndex: number | null = null;
@@ -32,6 +30,7 @@ export class Editor extends Scene {
   selectedType: TileData | 'map' | 'start' | 'winning' = TileData.ROCK;
   levelId: string | null = null;
   levelIsNotBeatableReason: Phaser.GameObjects.Text | null = null;
+  isModalOpen = false;
 
   toolButtonEntries: {
     graphics: Phaser.GameObjects.Graphics;
@@ -72,7 +71,6 @@ export class Editor extends Scene {
           .setOrigin(0.5)
           .setVisible(false);
 
-        // Small corner dot — shown when this tile holds the hidden map
         const indicator = this.add
           .image(x, y, 'map')
           .setDepth(3)
@@ -101,7 +99,6 @@ export class Editor extends Scene {
       }
     }
 
-    // ── Tool buttons ────────────────────────────────────────────────────────
     const btnSize = 40;
     const btnGap = 50;
     const buttonRowY1 = height - BUTTON_Y_OFFSET - btnGap + 6;
@@ -203,7 +200,7 @@ export class Editor extends Scene {
       100,
       btnSize,
       'Save',
-      0x3a5a31,
+      0x7cfc00,
       () => {
         const tilesToSave = [...this.tileData];
         if (
@@ -234,7 +231,7 @@ export class Editor extends Scene {
             this.levelIsNotBeatableReason = this.add.text(10, 10, `${reason}`, {
               fontFamily: 'Pixelify Sans',
               fontSize: '16px',
-              color: '#2f2f2f',
+              color: '#ba1e00',
             });
           } else {
             this.levelIsNotBeatableReason.setText(`${reason}`);
@@ -245,8 +242,6 @@ export class Editor extends Scene {
 
     this.renderGrid();
   }
-
-  // ─── Tool buttons ──────────────────────────────────────────────────────────
 
   private createToolButton(
     x: number,
@@ -281,8 +276,6 @@ export class Editor extends Scene {
     return container;
   }
 
-  // Redraws a single button's background: gray by default, green when
-  // its type is the currently selected tool.
   private paintToolButton(
     graphics: Phaser.GameObjects.Graphics,
     size: number,
@@ -290,7 +283,7 @@ export class Editor extends Scene {
     buttonType: TileData | 'map' | 'start' | 'winning'
   ) {
     const isSelected = this.selectedType === buttonType;
-    const fillColor = isSelected ? BUTTON_SELECTED : BUTTON_GRAY;
+    const fillColor = isSelected ? BUTTON_SELECTED : BUTTON_STANDARD;
 
     graphics.clear();
     graphics.fillStyle(fillColor, 1);
@@ -299,7 +292,6 @@ export class Editor extends Scene {
     graphics.strokeRoundedRect(0, 0, size, size, radius);
   }
 
-  // Call whenever selectedType changes to keep button backgrounds in sync.
   private refreshToolButtonColors() {
     const radius = 8;
     for (const entry of this.toolButtonEntries) {
@@ -343,15 +335,13 @@ export class Editor extends Scene {
     return container;
   }
 
-  // ─── Status ────────────────────────────────────────────────────────────────
-
   private updateStatus() {
     this.refreshToolButtonColors();
   }
 
-  // ─── Tile placement ────────────────────────────────────────────────────────
-
   private setTile(index: number) {
+    if (this.isModalOpen) return;
+
     if (
       (this.startTileIndex === index || this.winningTileIndex === index) &&
       this.selectedType !== TileData.BASE_TILE &&
@@ -363,7 +353,6 @@ export class Editor extends Scene {
     }
 
     if (this.selectedType === 'map') {
-      // Move the map to this tile (clears previous location automatically)
       this.mapTileIndex = index;
       this.renderGrid();
       return;
@@ -394,17 +383,14 @@ export class Editor extends Scene {
     const currentTile = this.tileData[index];
 
     if (this.selectedType === TileData.BASE_TILE) {
-      // Full reset: clear tile and any underlying item
       this.tileData[index] = TileData.BASE_TILE;
       this.underlyingItems.delete(index);
-      // Also remove the map if it was here
       if (this.mapTileIndex === index) this.mapTileIndex = null;
     } else if (
       (this.selectedType === TileData.ROCK ||
         this.selectedType === TileData.TREE) &&
       (currentTile === TileData.SHOVEL || currentTile === TileData.PICKAXE)
     ) {
-      // Layer obstacle on top of a tool
       this.underlyingItems.set(index, currentTile);
       this.tileData[index] = this.selectedType;
     } else {
@@ -423,8 +409,6 @@ export class Editor extends Scene {
     const type = this.tileData[index];
     return type === TileData.BASE_TILE && index !== this.startTileIndex;
   }
-
-  // ─── Grid render ───────────────────────────────────────────────────────────
 
   private renderGrid() {
     for (let i = 0; i < LEVEL_TILE_COUNT; i++) {
@@ -526,8 +510,8 @@ export class Editor extends Scene {
   }
 
   private openPublishModal() {
-    // Guard against opening twice
     if (document.getElementById('level-publish-modal')) return;
+    this.isModalOpen = true;
 
     const overlay = document.createElement('div');
     overlay.id = 'level-publish-modal';
@@ -544,8 +528,8 @@ export class Editor extends Scene {
 
     const panel = document.createElement('div');
     Object.assign(panel.style, {
-      background: '#1a1a2e',
-      border: '3px solid #ffd700',
+      background: '#1a1a1a',
+      border: '3px solid #fab82c',
       borderRadius: '12px',
       padding: '24px',
       width: 'min(90vw, 400px)',
@@ -556,7 +540,7 @@ export class Editor extends Scene {
     const heading = document.createElement('h2');
     heading.textContent = 'Publish this level';
     Object.assign(heading.style, {
-      color: '#ffd700',
+      color: '#fab82c',
       margin: '0 0 16px 0',
       fontSize: '22px',
     });
@@ -605,7 +589,10 @@ export class Editor extends Scene {
       fontSize: '15px',
       cursor: 'pointer',
     });
-    cancelButton.onclick = () => overlay.remove();
+    cancelButton.onclick = () => {
+      this.isModalOpen = false;
+      overlay.remove();
+    };
 
     const confirmButton = document.createElement('button');
     confirmButton.textContent = 'Publish';
@@ -614,8 +601,8 @@ export class Editor extends Scene {
       padding: '10px',
       borderRadius: '8px',
       border: 'none',
-      background: '#3a5a31',
-      color: '#fff',
+      background: '#7CFC00',
+      color: '#ffffff',
       fontSize: '15px',
       cursor: 'pointer',
       fontWeight: 'bold',
@@ -648,7 +635,10 @@ export class Editor extends Scene {
           fontSize: '15px',
           cursor: 'pointer',
         });
-        closeBtn.onclick = () => overlay.remove();
+        closeBtn.onclick = () => {
+          this.isModalOpen = false;
+          overlay.remove();
+        };
         panel.appendChild(closeBtn);
       } else {
         confirmButton.disabled = false;
@@ -681,6 +671,13 @@ export class Editor extends Scene {
     panel.appendChild(buttonRow);
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
+
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById('level-publish-modal')) {
+        this.isModalOpen = false;
+      }
+    });
+    observer.observe(document.body, { childList: true });
 
     input.focus();
   }

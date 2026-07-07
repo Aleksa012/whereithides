@@ -8,12 +8,7 @@ export class Boot extends Scene {
     this.entry = entry;
   }
 
-  preload() {
-    this.load.image('background', '../assets/bg.png');
-  }
-
   create() {
-    // Ensure Pixelify Sans is available to Phaser canvas text
     const fontLinkId = 'pixelify-font';
     if (!document.getElementById(fontLinkId)) {
       const link = document.createElement('link');

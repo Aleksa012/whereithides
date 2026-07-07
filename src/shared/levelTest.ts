@@ -90,7 +90,7 @@ function dijkstraReachableSet(
 export function isLevelBeatable(levelData: LevelData): BeatabilityResult {
   const { tiles, cols, rows, startTileIndex, winningTileIndex } = levelData;
 
-  // ── Basic validation ──────────────────────────────────────────────
+
   if (startTileIndex === null || startTileIndex === undefined) {
     return {
       beatable: false,

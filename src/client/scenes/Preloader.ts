@@ -6,10 +6,6 @@ export class Preloader extends Scene {
     super('Preloader');
   }
 
-  init() {
-    this.add.image(512, 384, 'background');
-  }
-
   preload() {
     this.load.setPath('../assets');
 
@@ -17,8 +13,6 @@ export class Preloader extends Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
-
-    this.load.image('logo', 'logo.png');
 
     //Road
     this.load.image('tile', 'roads/FieldsTile_01.png');

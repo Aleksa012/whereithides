@@ -94,16 +94,17 @@ body {
 }
 
 .leaderboard-entry-rank {
-  min-width: 32px;
-  height: 32px;
+  min-width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 7px;
   background: #fab82c;
   color: #1a1a1a;
   font-size: 14px;
   font-weight: 800;
+  font-family: sans-serif;
 }
 
 .leaderboard-entry-name {

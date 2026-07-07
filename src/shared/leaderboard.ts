@@ -1,8 +1,8 @@
 export const MAX_POINTS = 1000;
 export const MIN_POINTS = 5;
 
-const FAST_DECAY_K = Math.log(5) / 5; // moves <= 10
-const SLOW_DECAY_K = Math.log(2) / 10; // moves > 10
+const FAST_DECAY_K = Math.log(5) / 5;
+const SLOW_DECAY_K = Math.log(2) / 10;
 const FAST_DECAY_COEFFICIENT = 2500;
 const SLOW_DECAY_COEFFICIENT = 200;
 
@@ -24,7 +24,7 @@ export type LeaderboardEntry = {
   userId: string;
   username: string;
   score: number;
-  rank: number; // 1-based
+  rank: number;
 };
 
 export type LeaderboardResponse = {
@@ -35,13 +35,13 @@ export type LeaderboardResponse = {
     userId: string;
     username: string;
     score: number;
-    rank: number | null; // null if the user has no score yet
+    rank: number | null;
   } | null;
 };
 
 export type CompleteLevelResponse = {
   type: 'complete-level';
-  awarded: boolean; // false if this post was already completed by this user
-  pointsEarned: number; // 0 if not awarded
+  awarded: boolean;
+  pointsEarned: number;
   totalScore: number;
 };
