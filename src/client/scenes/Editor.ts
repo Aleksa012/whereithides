@@ -319,7 +319,7 @@ export class Editor extends Scene {
       .text(width / 2, height / 2, label, {
         fontFamily: 'Pixelify Sans',
         fontSize: 18,
-        color: '#ffffff',
+        color: '#1a1a1a',
       })
       .setOrigin(0.5);
 
@@ -602,7 +602,7 @@ export class Editor extends Scene {
       borderRadius: '8px',
       border: 'none',
       background: '#7CFC00',
-      color: '#ffffff',
+      color: '#1a1a1a',
       fontSize: '15px',
       cursor: 'pointer',
       fontWeight: 'bold',

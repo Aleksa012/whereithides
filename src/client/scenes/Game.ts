@@ -30,8 +30,6 @@ export class Game extends Scene {
 
   isMoving = false;
   hasWon = false;
-  winText: Phaser.GameObjects.Text | null = null;
-  winSubtext: Phaser.GameObjects.Text | null = null;
   winningIndex: number | null = null;
   levelId: string | null = null;
   hasPlacedCharacter = false;
@@ -44,9 +42,12 @@ export class Game extends Scene {
   notificationIcon: Phaser.GameObjects.Image | null = null;
   notificationTimer: Phaser.Time.TimerEvent | null = null;
 
-  mapOverlay: Phaser.GameObjects.Container | null = null;
+  mapOverlayEl: HTMLDivElement | null = null;
   mapOverlayClosed = false;
   isOverlayOpen = false;
+
+  winOverlayEl: HTMLDivElement | null = null;
+  winStatusEl: HTMLDivElement | null = null;
 
   moveCount = 0;
   scoreSubmitted = false;
@@ -86,13 +87,16 @@ export class Game extends Scene {
     this.isMoving = false;
     this.hasWon = false;
     this.hasPlacedCharacter = false;
-    this.mapOverlay = null;
+    this.mapOverlayEl?.remove();
+    this.mapOverlayEl = null;
     this.mapOverlayClosed = false;
     this.isOverlayOpen = false;
+    this.winOverlayEl?.remove();
+    this.winOverlayEl = null;
+    this.winStatusEl = null;
     this.inventory = { pickaxe: false, shovel: false, map: false };
     this.moveCount = 0;
     this.scoreSubmitted = false;
-    this.winSubtext = null;
   }
 
   async create() {
@@ -111,36 +115,6 @@ export class Game extends Scene {
       .sprite(64, 64, 'knight', 0)
       .setDepth(10)
       .setDisplaySize(this.scale.width / 8 - 4, this.scale.width / 8 - 4);
-
-    this.winText = this.add
-      .text(this.scale.width / 2, this.scale.height / 2, `You Won!`, {
-        fontFamily: 'Pixelify Sans',
-        fontSize: 64,
-        color: '#FFD700',
-        stroke: '#000000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(100)
-      .setVisible(false);
-
-    this.winSubtext = this.add
-      .text(
-        this.scale.width / 2,
-        this.scale.height / 2 + 80,
-        `Your score of ===\nwill be submited\nto the leaderboard!`,
-        {
-          fontFamily: 'Arial',
-          fontSize: 16,
-          color: '#FFD700',
-          stroke: '#000000',
-          strokeThickness: 4,
-          align: 'center',
-        }
-      )
-      .setOrigin(0.5)
-      .setDepth(100)
-      .setVisible(false);
 
     this.updateLayout(this.scale.width, this.scale.height);
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
@@ -463,120 +437,217 @@ export class Game extends Scene {
 
   private showMapOverlay() {
     if (this.mapOverlayClosed) return;
+    if (document.getElementById('level-map-overlay')) return;
 
-    const { width, height } = this.scale;
+    const overlay = document.createElement('div');
+    overlay.id = 'level-map-overlay';
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      inset: '0',
+      background: 'rgba(0, 0, 0, 0.75)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: '1000',
+      fontFamily: 'Pixelify Sans, sans-serif',
+      cursor: 'pointer',
+    });
+    overlay.onclick = () => this.closeMapOverlay();
 
-    const backdrop = this.add
-      .rectangle(0, 0, width, height, 0x000000, 0.75)
-      .setOrigin(0)
-      .setDepth(200)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.closeMapOverlay());
+    const panel = document.createElement('div');
+    Object.assign(panel.style, {
+      background: '#1a1a1a',
+      border: '3px solid #fab82c',
+      borderRadius: '12px',
+      padding: '24px',
+      width: 'min(90vw, 480px)',
+      boxSizing: 'border-box',
+      textAlign: 'center',
+      cursor: 'default',
+    });
+    panel.onclick = (event) => event.stopPropagation();
 
-    backdrop.on('pointerdown', (event: Phaser.Input.Pointer) => {
-      event.event.stopPropagation();
+    const heading = document.createElement('h2');
+    heading.textContent = 'MAP';
+    Object.assign(heading.style, {
+      color: '#fab82c',
+      margin: '0 0 16px 0',
+      fontSize: '28px',
     });
 
-    const panelW = Math.min(width * 0.85, 480);
-    const panelH = panelW + 80;
-    const panelX = (width - panelW) / 2;
-    const panelY = (height - panelH) / 2;
+    const grid = document.createElement('div');
+    Object.assign(grid.style, {
+      display: 'grid',
+      gridTemplateColumns: `repeat(${LEVEL_COLS}, 1fr)`,
+      gridTemplateRows: `repeat(${LEVEL_ROWS}, 1fr)`,
+      gap: '1px',
+      background: '#1a1a1a',
+      width: '100%',
+      aspectRatio: '1 / 1',
+      marginBottom: '16px',
+      overflow: 'hidden',
+      borderRadius: '4px',
+    });
 
-    const panel = this.add
-      .rectangle(panelX, panelY, panelW, panelH, 0x1a1a1a)
-      .setOrigin(0)
-      .setDepth(201)
-      .setStrokeStyle(3, 0xfab82c);
+    for (let i = 0; i < this.tiles.length; i++) {
+      const type = this.tiles[i];
+      const cellColor =
+        type === TileData.ROCK
+          ? '#555555'
+          : type === TileData.TREE
+            ? '#2d5a1b'
+            : type === TileData.DIRT
+              ? '#6b4226'
+              : '#fab82c';
 
-    const title = this.add
-      .text(panelX + panelW / 2, panelY + 28, 'MAP', {
-        fontFamily: 'Pixelify Sans',
-        fontSize: '32px',
-        color: '#fab82c',
-        stroke: '#1a1a1a',
-        strokeThickness: 4,
-      })
-      .setOrigin(0.5)
-      .setDepth(202);
+      const cell = document.createElement('div');
+      Object.assign(cell.style, {
+        background: cellColor,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: '0',
+        minHeight: '0',
+      });
 
-    const gridPad = 16;
-    const gridSize = panelW - gridPad * 2;
-    const cellSize = gridSize / LEVEL_COLS;
-    const gridX = panelX + gridPad;
-    const gridY = panelY + 64;
-
-    const gridItems: Phaser.GameObjects.GameObject[] = [];
-
-    for (let row = 0; row < LEVEL_ROWS; row++) {
-      for (let col = 0; col < LEVEL_COLS; col++) {
-        const index = row * LEVEL_COLS + col;
-        const cx = gridX + col * cellSize;
-        const cy = gridY + row * cellSize;
-
-        const cellColor =
-          this.tiles[index] === TileData.ROCK
-            ? 0x555555
-            : this.tiles[index] === TileData.TREE
-              ? 0x2d5a1b
-              : this.tiles[index] === TileData.DIRT
-                ? 0x6b4226
-                : 0xfab82c;
-
-        gridItems.push(
-          this.add
-            .rectangle(cx, cy, cellSize - 1, cellSize - 1, cellColor)
-            .setOrigin(0)
-            .setDepth(202)
-        );
-
-        if (index === this.winningIndex) {
-          gridItems.push(
-            this.add
-              .text(cx + cellSize / 2, cy + cellSize / 2, 'X', {
-                fontFamily: 'Arial Black',
-                fontSize: `${Math.round(cellSize * 0.55)}px`,
-                color: '#ff2222',
-                stroke: '#000000',
-                strokeThickness: 2,
-              })
-              .setOrigin(0.5)
-              .setDepth(203)
-          );
-        }
+      if (i === this.winningIndex) {
+        cell.textContent = 'X';
+        Object.assign(cell.style, {
+          color: '#ff2222',
+          fontWeight: 'bold',
+          fontFamily: 'Arial Black, sans-serif',
+        });
       }
+
+      grid.appendChild(cell);
     }
 
-    const closeHint = this.add
-      .text(
-        panelX + panelW / 2,
-        panelY + panelH - 20,
-        'Tap anywhere to close',
-        {
-          fontFamily: 'Pixelify Sans',
-          fontSize: '14px',
-          color: '#fab82c',
-        }
-      )
-      .setOrigin(0.5)
-      .setDepth(202);
+    const closeButton = this.createDomActionButton('Close', '#fab82c', () =>
+      this.closeMapOverlay()
+    );
+    closeButton.style.marginTop = '4px';
+    closeButton.style.width = '100%';
+    closeButton.style.boxSizing = 'border-box';
 
-    this.mapOverlay = this.add.container(0, 0, [
-      backdrop,
-      panel,
-      title,
-      ...gridItems,
-      closeHint,
-    ]);
-    this.mapOverlay.setDepth(200);
+    panel.appendChild(heading);
+    panel.appendChild(grid);
+    panel.appendChild(closeButton);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    this.mapOverlayEl = overlay;
     this.isOverlayOpen = true;
   }
 
   private closeMapOverlay() {
-    if (!this.mapOverlay) return;
-    this.mapOverlay.destroy(true);
-    this.mapOverlay = null;
+    if (!this.mapOverlayEl) return;
+    this.mapOverlayEl.remove();
+    this.mapOverlayEl = null;
     this.isOverlayOpen = false;
     this.mapOverlayClosed = true;
+  }
+
+  private createDomActionButton(
+    label: string,
+    background: string,
+    onClick: () => void
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.textContent = label;
+    Object.assign(button.style, {
+      padding: '10px',
+      borderRadius: '8px',
+      border: 'none',
+      background,
+      color: '#1a1a1a',
+      fontSize: '15px',
+      cursor: 'pointer',
+      fontWeight: 'bold',
+      fontFamily: 'Pixelify Sans, sans-serif',
+    });
+    button.onmouseenter = () => (button.style.filter = 'brightness(1.1)');
+    button.onmouseleave = () => (button.style.filter = 'none');
+    button.onclick = () => {
+      if (this.winOverlayEl) this.winOverlayEl.remove();
+      onClick();
+    };
+    return button;
+  }
+
+  private showWinOverlay() {
+    if (document.getElementById('level-win-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'level-win-overlay';
+    Object.assign(overlay.style, {
+      position: 'fixed',
+      inset: '0',
+      background: 'rgba(0, 0, 0, 0.75)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: '1000',
+      fontFamily: 'Pixelify Sans, sans-serif',
+    });
+
+    const panel = document.createElement('div');
+    Object.assign(panel.style, {
+      background: '#1a1a1a',
+      border: '3px solid #fab82c',
+      borderRadius: '12px',
+      padding: '24px',
+      width: 'min(90vw, 400px)',
+      boxSizing: 'border-box',
+      textAlign: 'center',
+    });
+
+    const heading = document.createElement('h2');
+    heading.textContent = 'You Won!';
+    Object.assign(heading.style, {
+      color: '#fab82c',
+      margin: '0 0 16px 0',
+      fontSize: '28px',
+    });
+
+    const status = document.createElement('div');
+    status.id = 'win-status-text';
+    status.textContent = 'Submitting score...';
+    Object.assign(status.style, {
+      color: '#FFD700',
+      fontSize: '16px',
+      fontFamily: 'Pixelify Sans, sans-serif',
+      margin: '0 0 20px 0',
+    });
+
+    const buttonRow = document.createElement('div');
+    Object.assign(buttonRow.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+    });
+
+    const leaderboardButton = this.createDomActionButton(
+      'Leaderboard',
+      '#fab82c',
+      () => this.scene.start('Leaderboard')
+    );
+    const createLevelButton = this.createDomActionButton(
+      'Create Level',
+      '#fab82c',
+      () => this.scene.start('Editor')
+    );
+
+    buttonRow.appendChild(leaderboardButton);
+    buttonRow.appendChild(createLevelButton);
+
+    panel.appendChild(heading);
+    panel.appendChild(status);
+    panel.appendChild(buttonRow);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    this.winOverlayEl = overlay;
+    this.winStatusEl = status;
   }
 
   private moveCharacterToTile(clickedIndex: number) {
@@ -802,26 +873,49 @@ export class Game extends Scene {
         return null;
       });
 
+    if (!this.winStatusEl) return;
+
     if (submitResponse && 'type' in submitResponse) {
       const response = submitResponse as CompleteLevelResponse;
-      if (this.winSubtext && response.awarded)
-        this.winSubtext
-          .setVisible(true)
-          .setPosition(this.scale.width / 2, this.scale.height / 2 + 80)
-          .setText(
-            `${this.winSubtext.text.replace('===', response.pointsEarned.toFixed(0))}`
-          );
+      if (response.awarded) {
+        this.winStatusEl.innerHTML = '';
+
+        const topLine = document.createElement('div');
+        topLine.textContent = 'Your score of';
+        Object.assign(topLine.style, {
+          fontFamily: 'Pixelify Sans, sans-serif',
+        });
+
+        const pointsLine = document.createElement('div');
+        pointsLine.textContent = response.pointsEarned.toFixed(0);
+        Object.assign(pointsLine.style, {
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '28px',
+          fontWeight: 'bold',
+          margin: '4px 0',
+        });
+
+        const bottomLine = document.createElement('div');
+        bottomLine.textContent = 'will be submitted to the leaderboard!';
+        Object.assign(bottomLine.style, {
+          fontFamily: 'Pixelify Sans, sans-serif',
+        });
+
+        this.winStatusEl.appendChild(topLine);
+        this.winStatusEl.appendChild(pointsLine);
+        this.winStatusEl.appendChild(bottomLine);
+      } else {
+        this.winStatusEl.textContent =
+          'You were already awarded for this level';
+      }
+    } else {
+      this.winStatusEl.textContent = 'Failed to submit score';
     }
   }
 
   updateWinState() {
-    if (!this.winText || !this.winSubtext) return;
-    if (this.hasWon) {
-      this.winText
-        .setVisible(true)
-        .setPosition(this.scale.width / 2, this.scale.height / 2);
-    } else {
-      this.winText.setVisible(false);
+    if (this.hasWon && !this.winOverlayEl) {
+      this.showWinOverlay();
     }
   }
 
